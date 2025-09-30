@@ -1,23 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { Message } from '../../shared/types';
 import { useSessionStore } from '../store/sessionStore';
-import {
-  extractFileReferences,
-  parseTodoWrite,
-  getTodoStatusIcon,
-  parseEditTool,
-  parseWriteTool,
-  parseReadTool,
-  truncateContent,
-  formatDiffLines,
-  getFileIcon,
-  getFileName,
-  normalizePath,
-  formatToolName,
-} from '../utils/messageFormatting';
+import { MessageRenderer } from '../utils/messageRenderer';
+import { formatToolName } from '../utils/messageFormatting';
 
 interface MessageListProps {
   messages: Message[];
@@ -105,253 +90,13 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     }
   };
 
-  // Render a file path button
-  const renderFilePathButton = (path: string, lineNumber?: number, size: 'small' | 'medium' = 'medium') => {
-    const fileName = getFileName(path);
-    const icon = getFileIcon(path);
-
-    return (
-      <button
-        className={`file-path-button ${size}`}
-        onClick={() => openFile(path, lineNumber)}
-        title={`Click to copy: ${normalizePath(path)}${lineNumber ? `:${lineNumber}` : ''}`}
-      >
-        <span className="file-icon">{icon}</span>
-        <span className="file-name">{fileName}</span>
-        {lineNumber && <span className="file-line">:{lineNumber}</span>}
-      </button>
-    );
-  };
-
-  // Render TodoWrite content
-  const renderTodoWrite = (content: string, messageId: string) => {
-    const todos = parseTodoWrite(content);
-
-    if (!todos) {
-      return <pre className="tool-input-content">{content}</pre>;
-    }
-
-    return (
-      <div className="todo-list">
-        {todos.map((todo, index) => (
-          <div key={index} className={`todo-item ${todo.status}`}>
-            <span className="todo-status">{getTodoStatusIcon(todo.status)}</span>
-            <div className="todo-content">
-              <div className="todo-text">{todo.content}</div>
-              {todo.status === 'in_progress' && (
-                <div className="todo-active">{todo.activeForm}</div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // Render Edit tool content with diff view
-  const renderEditTool = (content: string, messageId: string) => {
-    const editData = parseEditTool(content);
-
-    if (!editData) {
-      return <pre className="tool-input-content">{content}</pre>;
-    }
-
-    const { file_path, old_string, new_string, replace_all } = editData;
-    const { oldLines, newLines } = formatDiffLines(old_string, new_string);
-
-    return (
-      <div className="edit-tool-content">
-        <div className="edit-file-path">
-          {renderFilePathButton(file_path)}
-          {replace_all && <span className="edit-badge">Replace All</span>}
-        </div>
-        <div className="diff-view">
-          <div className="diff-section removed">
-            <div className="diff-header">Removed</div>
-            <pre className="diff-content">
-              {oldLines.join('\n')}
-            </pre>
-          </div>
-          <div className="diff-section added">
-            <div className="diff-header">Added</div>
-            <pre className="diff-content">
-              {newLines.join('\n')}
-            </pre>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Render Write tool content
-  const renderWriteTool = (content: string, messageId: string) => {
-    const writeData = parseWriteTool(content);
-
-    if (!writeData) {
-      return <pre className="tool-input-content">{content}</pre>;
-    }
-
-    const { file_path, content: fileContent } = writeData;
-    const { truncated, isTruncated, totalLines } = truncateContent(fileContent, 10);
-    const isExpanded = expandedContent.has(`write-${messageId}`);
-    const displayContent = isExpanded ? fileContent : truncated;
-
-    return (
-      <div className="write-tool-content">
-        <div className="write-file-path">
-          {renderFilePathButton(file_path)}
-          <span className="write-lines">{totalLines} lines</span>
-        </div>
-        <div className="write-preview">
-          <SyntaxHighlighter
-            style={vscDarkPlus}
-            language="text"
-            showLineNumbers
-            PreTag="div"
-            customStyle={{ margin: 0, borderRadius: '4px', fontSize: '12px' }}
-          >
-            {displayContent}
-          </SyntaxHighlighter>
-        </div>
-        {isTruncated && (
-          <button
-            className="expand-button"
-            onClick={() => toggleExpanded(`write-${messageId}`)}
-          >
-            {isExpanded ? 'Show Less' : `Show More (${totalLines - 10} more lines)`}
-          </button>
-        )}
-      </div>
-    );
-  };
-
-  // Render Read tool content
-  const renderReadTool = (content: string, messageId: string) => {
-    const readData = parseReadTool(content);
-
-    if (!readData) {
-      return <pre className="tool-input-content">{content}</pre>;
-    }
-
-    const { file_path, offset, limit } = readData;
-
-    return (
-      <div className="read-tool-content">
-        {renderFilePathButton(file_path)}
-        {(offset !== undefined || limit !== undefined) && (
-          <div className="read-params">
-            {offset !== undefined && <span className="param">Offset: {offset}</span>}
-            {limit !== undefined && <span className="param">Limit: {limit}</span>}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Render tool input based on tool type
-  const renderToolInput = (toolName: string, content: string, messageId: string) => {
-    switch (toolName) {
-      case 'TodoWrite':
-        return renderTodoWrite(content, messageId);
-      case 'Edit':
-        return renderEditTool(content, messageId);
-      case 'Write':
-        return renderWriteTool(content, messageId);
-      case 'Read':
-        return renderReadTool(content, messageId);
-      default:
-        // Check if content contains file_path and render it
-        try {
-          const parsed = JSON.parse(content);
-          if (parsed.file_path) {
-            return (
-              <div className="generic-tool-content">
-                {renderFilePathButton(parsed.file_path)}
-                <pre className="tool-input-content">{content}</pre>
-              </div>
-            );
-          }
-        } catch (e) {
-          // Not JSON, render as is
-        }
-        return <pre className="tool-input-content">{content}</pre>;
-    }
-  };
-
-  // Enhanced markdown renderer with file path detection
-  const renderEnhancedMarkdown = (content: string, messageId: string) => {
-    const fileRefs = extractFileReferences(content);
-
-    return (
-      <ReactMarkdown
-        components={{
-          code({ node, inline, className, children, ...props }) {
-            const match = /language-(\w+)/.exec(className || '');
-            const codeString = String(children).replace(/\n$/, '');
-            const codeId = `code-${messageId}-${Math.random()}`;
-
-            return !inline && match ? (
-              <div className="code-block-wrapper">
-                <div className="code-block-header">
-                  <span className="code-language">{match[1]}</span>
-                  <button
-                    className="copy-code-button"
-                    onClick={() => copyToClipboard(codeString, codeId)}
-                    title="Copy code"
-                  >
-                    {copiedCode === codeId ? '✓ Copied' : '📋 Copy'}
-                  </button>
-                </div>
-                <SyntaxHighlighter
-                  style={vscDarkPlus}
-                  language={match[1]}
-                  PreTag="div"
-                  {...props}
-                >
-                  {codeString}
-                </SyntaxHighlighter>
-              </div>
-            ) : (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            );
-          },
-          p({ children }) {
-            // Check if paragraph contains file references
-            const text = String(children);
-            const refs = extractFileReferences(text);
-
-            if (refs.length > 0) {
-              // Render with file chips
-              return (
-                <p className="text-with-files">
-                  {children}
-                  <div className="file-chips">
-                    {refs.map((ref, idx) => (
-                      <button
-                        key={idx}
-                        className="file-chip"
-                        onClick={() => openFile(ref.path, ref.lineNumber)}
-                        title={normalizePath(ref.path)}
-                      >
-                        <span className="file-icon">{getFileIcon(ref.path)}</span>
-                        <span className="file-name">{getFileName(ref.path)}</span>
-                        {ref.lineNumber && <span className="file-line">:{ref.lineNumber}</span>}
-                      </button>
-                    ))}
-                  </div>
-                </p>
-              );
-            }
-
-            return <p>{children}</p>;
-          },
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    );
+  // Create render config for MessageRenderer
+  const renderConfig = {
+    onCopyCode: copyToClipboard,
+    onOpenFile: openFile,
+    onToggleExpanded: toggleExpanded,
+    copiedCode,
+    expandedContent,
   };
 
   const renderMessage = (message: Message) => {
@@ -395,7 +140,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                 </span>
               </div>
               <div className="message-body">
-                {renderEnhancedMarkdown(content, message.id)}
+                {MessageRenderer.renderEnhancedMarkdown(content, message.id, renderConfig)}
                 <button
                   className="copy-button"
                   onClick={() => copyMessageContent(content, message.id)}
@@ -463,7 +208,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
             </div>
             {hasContent && !isToolCollapsed && (
               <div className="tool-body">
-                {renderToolInput(toolName, content, message.id)}
+                {MessageRenderer.renderToolInput(toolName, content, message.id, renderConfig)}
               </div>
             )}
           </div>
@@ -474,16 +219,8 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         const isResultCollapsed = collapsedTools.has(message.id);
         const resultToolName = metadata?.toolName || 'Unknown';
 
-        // Try to parse and format JSON content
-        let formattedContent = content;
-        let isJson = false;
-        try {
-          const parsed = JSON.parse(content);
-          formattedContent = JSON.stringify(parsed, null, 2);
-          isJson = true;
-        } catch {
-          // Not JSON, use as is
-        }
+        // Format tool result content
+        const { formattedContent, isJson } = MessageRenderer.formatToolResultContent(content);
 
         return (
           <div
@@ -514,42 +251,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
             </div>
             {!isResultCollapsed && (
               <div className="tool-result-body">
-                {isJson ? (
-                  <SyntaxHighlighter
-                    style={vscDarkPlus}
-                    language="json"
-                    PreTag="div"
-                    customStyle={{ margin: 0, borderRadius: '4px' }}
-                  >
-                    {formattedContent}
-                  </SyntaxHighlighter>
-                ) : (
-                  <ReactMarkdown
-                    components={{
-                      code({ node, inline, className, children, ...props }) {
-                        const match = /language-(\w+)/.exec(className || '');
-                        const codeString = String(children).replace(/\n$/, '');
-                        return !inline && match ? (
-                          <SyntaxHighlighter
-                            style={vscDarkPlus}
-                            language={match[1]}
-                            PreTag="div"
-                            customStyle={{ margin: 0 }}
-                            {...props}
-                          >
-                            {codeString}
-                          </SyntaxHighlighter>
-                        ) : (
-                          <code className={className} {...props}>
-                            {children}
-                          </code>
-                        );
-                      },
-                    }}
-                  >
-                    {formattedContent}
-                  </ReactMarkdown>
-                )}
+                {MessageRenderer.renderToolResult(formattedContent, isJson)}
               </div>
             )}
           </div>

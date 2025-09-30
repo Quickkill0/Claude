@@ -13,6 +13,13 @@ export interface Session {
   isProcessing: boolean;
   yoloMode?: boolean;
   sessionPermissions?: PermissionRule[];
+  totalCost?: number;
+  tokenUsage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationTokens: number;
+    cacheReadTokens: number;
+  };
 }
 
 export interface Conversation {
@@ -24,6 +31,22 @@ export interface Conversation {
   lastActive: string;
 }
 
+export interface ContentBlock {
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result';
+  text?: string;
+  thinking?: string;
+  tool_use?: {
+    id: string;
+    name: string;
+    input: any;
+  };
+  tool_result?: {
+    tool_use_id: string;
+    content: any;
+    is_error?: boolean;
+  };
+}
+
 export interface Message {
   id: string;
   sessionId: string;
@@ -31,6 +54,7 @@ export interface Message {
   timestamp: string;
   type: 'user' | 'assistant' | 'system' | 'tool' | 'tool-result' | 'thinking' | 'error' | 'permission-request';
   content: string;
+  contentBlocks?: ContentBlock[];
   metadata?: {
     cost?: number;
     tokens?: { input: number; output: number };
@@ -41,6 +65,8 @@ export interface Message {
     hidden?: boolean;
     model?: string;
     permissionRequest?: PermissionRequest;
+    toolUseId?: string;
+    contentBlockIndex?: number;
   };
 }
 

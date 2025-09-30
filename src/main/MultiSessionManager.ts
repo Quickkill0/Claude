@@ -4,6 +4,8 @@ import * as path from 'path';
 import { Session, SessionConfig, ClaudeStreamData } from '../shared/types';
 import * as crypto from 'crypto';
 import { app } from 'electron';
+import { MessageParser } from './MessageParser';
+import { ErrorHandler } from './ErrorHandler';
 
 interface ActiveSession {
   session: Session;
@@ -12,6 +14,7 @@ interface ActiveSession {
   permissionRequestsPath?: string;
   permissionWatcher?: fs.FSWatcher;
   processingRequests?: Set<string>;
+  parser?: MessageParser;
 }
 
 export class MultiSessionManager {
@@ -149,7 +152,8 @@ export class MultiSessionManager {
             fs.unlinkSync(requestPath);
           }
         } catch (error) {
-          console.error('[PERMISSIONS] Error handling request:', error);
+          const errorInfo = ErrorHandler.handlePermissionError(error);
+          console.error('[PERMISSIONS] Error handling request:', ErrorHandler.formatError(errorInfo));
         } finally {
           // Remove from processing set
           activeSession.processingRequests?.delete(filename);
@@ -250,6 +254,7 @@ export class MultiSessionManager {
     this.sessions.set(sessionId, {
       session,
       rawOutput: '',
+      parser: new MessageParser(),
     });
 
     // If this is the first session, make it active
@@ -303,6 +308,11 @@ export class MultiSessionManager {
     // Close permission watcher
     if (activeSession.permissionWatcher) {
       activeSession.permissionWatcher.close();
+    }
+
+    // Clear parser state
+    if (activeSession.parser) {
+      activeSession.parser.clearSession(sessionId);
     }
 
     this.sessions.delete(sessionId);
@@ -488,6 +498,7 @@ export class MultiSessionManager {
       this.sessions.set(session.id, {
         session,
         rawOutput: '',
+        parser: new MessageParser(),
       });
 
       // Set active session if one was active
@@ -615,13 +626,12 @@ export class MultiSessionManager {
       session.isProcessing = false;
       activeSession.process = undefined;
 
+      const errorInfo = ErrorHandler.handleStreamError(error);
       this.onStreamData(sessionId, {
         type: 'system',
         subtype: 'error',
         message: {
-          content: error.message.includes('ENOENT')
-            ? 'Claude CLI not found. Please install Claude Code first.'
-            : `Error: ${error.message}`,
+          content: ErrorHandler.formatError(errorInfo),
         },
       });
     });
@@ -654,6 +664,11 @@ export class MultiSessionManager {
       activeSession.permissionWatcher = undefined;
     }
 
+    // Clear parser state
+    if (activeSession.parser) {
+      activeSession.parser.clearSession(sessionId);
+    }
+
     // Notify renderer that process was stopped
     this.onStreamData(sessionId, {
       type: 'system',
@@ -668,84 +683,87 @@ export class MultiSessionManager {
    * Processes stream data from Claude
    */
   private processStreamData(sessionId: string, jsonData: ClaudeStreamData): void {
-    const activeSession = this.sessions.get(sessionId);
-    if (!activeSession) {return;}
+    try {
+      const activeSession = this.sessions.get(sessionId);
+      if (!activeSession || !activeSession.parser) {
+        return;
+      }
 
-    // Capture session ID for resuming conversations
-    if (jsonData.session_id) {
-      activeSession.session.claudeSessionId = jsonData.session_id;
-      // Notify that session was updated so it can be persisted
+      // Capture session ID for resuming conversations
+      if (jsonData.session_id) {
+        activeSession.session.claudeSessionId = jsonData.session_id;
+        // Notify that session was updated so it can be persisted
+        this.onStreamData(sessionId, {
+          type: 'system',
+          subtype: 'session-updated',
+          session: activeSession.session,
+        });
+      }
+
+      // Parse stream data using MessageParser
+      const parsedResults = activeSession.parser.parseStreamData(sessionId, jsonData);
+
+      // Process each parsed result
+      for (const result of parsedResults) {
+        // Handle session updates
+        if (result.sessionUpdate) {
+          if (result.sessionUpdate.claudeSessionId) {
+            activeSession.session.claudeSessionId = result.sessionUpdate.claudeSessionId;
+          }
+          if (result.sessionUpdate.isProcessing !== undefined) {
+            activeSession.session.isProcessing = result.sessionUpdate.isProcessing;
+          }
+
+          // Notify renderer of session update
+          this.onStreamData(sessionId, {
+            type: 'system',
+            subtype: 'session-state-update',
+            sessionUpdate: result.sessionUpdate,
+          });
+        }
+
+        // Handle stats
+        if (result.stats) {
+          this.onStreamData(sessionId, {
+            type: 'system',
+            subtype: 'stats',
+            stats: result.stats,
+          });
+        }
+
+        // Handle message creation
+        if (result.message) {
+          this.onStreamData(sessionId, {
+            type: 'system',
+            subtype: 'message',
+            message: result.message,
+          });
+        }
+
+        // Handle message updates
+        if (result.updates) {
+          this.onStreamData(sessionId, {
+            type: 'system',
+            subtype: 'message-update',
+            updates: result.updates,
+          });
+        }
+      }
+    } catch (error) {
+      const errorInfo = ErrorHandler.handleStreamError(error);
+      console.error('[MultiSessionManager] Stream processing error:', ErrorHandler.formatError(errorInfo));
+
+      // Notify renderer of error
       this.onStreamData(sessionId, {
         type: 'system',
-        subtype: 'session-updated',
-        session: activeSession.session,
+        subtype: 'error',
+        message: {
+          content: ErrorHandler.formatError(errorInfo),
+        },
       });
     }
-
-    // Process different message types
-    switch (jsonData.type) {
-      case 'system':
-        this.handleSystemMessage(sessionId, jsonData);
-        break;
-      case 'assistant':
-        this.handleAssistantMessage(sessionId, jsonData);
-        break;
-      case 'user':
-        this.handleUserMessage(sessionId, jsonData);
-        break;
-      case 'result':
-        this.handleResultMessage(sessionId, jsonData);
-        break;
-      default:
-        // Forward unknown types as-is
-        this.onStreamData(sessionId, jsonData);
-    }
   }
 
-  /**
-   * Handles system messages
-   */
-  private handleSystemMessage(sessionId: string, jsonData: ClaudeStreamData): void {
-    if (jsonData.subtype === 'init') {
-      // Session initialized
-      this.onStreamData(sessionId, jsonData);
-    } else {
-      // Other system messages
-      this.onStreamData(sessionId, jsonData);
-    }
-  }
-
-  /**
-   * Handles assistant messages (content, tool use, thinking)
-   */
-  private handleAssistantMessage(sessionId: string, jsonData: ClaudeStreamData): void {
-    // Just forward the original data - let renderer handle formatting
-    this.onStreamData(sessionId, jsonData);
-  }
-
-  /**
-   * Handles user messages (tool results)
-   */
-  private handleUserMessage(sessionId: string, jsonData: ClaudeStreamData): void {
-    // Just forward the original data - let renderer handle formatting
-    this.onStreamData(sessionId, jsonData);
-  }
-
-  /**
-   * Handles result messages (final response)
-   */
-  private handleResultMessage(sessionId: string, jsonData: ClaudeStreamData): void {
-    const activeSession = this.sessions.get(sessionId);
-    if (!activeSession) return;
-
-    if (jsonData.subtype === 'success') {
-      // Request completed
-      activeSession.session.isProcessing = false;
-    }
-
-    // Forward the original data - let renderer handle formatting
-    this.onStreamData(sessionId, jsonData);
-  }
 
   /**
    * Builds command arguments for Claude CLI
@@ -809,12 +827,15 @@ export class MultiSessionManager {
    * Cleanup all sessions
    */
   cleanup(): void {
-    for (const [_, activeSession] of this.sessions) {
+    for (const [sessionId, activeSession] of this.sessions) {
       if (activeSession.process) {
         activeSession.process.kill('SIGTERM');
       }
       if (activeSession.permissionWatcher) {
         activeSession.permissionWatcher.close();
+      }
+      if (activeSession.parser) {
+        activeSession.parser.clearSession(sessionId);
       }
     }
     this.sessions.clear();

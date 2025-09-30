@@ -6,7 +6,6 @@ interface SessionStore {
   activeSessionId: string | null;
   messages: Map<string, Message[]>;
   isSidebarOpen: boolean;
-  streamingMessages: Map<string, Map<string, Message>>; // sessionId -> messageId -> Message
   inputTexts: Map<string, string>; // sessionId -> input text
   loadedArchivedConversation: Map<string, string | null>; // sessionId -> archived conversation key (if loaded from history)
 
@@ -39,7 +38,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   activeSessionId: null,
   messages: new Map(),
   isSidebarOpen: true,
-  streamingMessages: new Map(),
   inputTexts: new Map(),
   loadedArchivedConversation: new Map(),
 
@@ -195,154 +193,62 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   handleStreamData: (sessionId: string, data: ClaudeStreamData) => {
-    // Process different types of stream data based on plugin's MessageHandler
-    const messageId = data.message?.id || crypto.randomUUID();
-
-    if (data.type === 'assistant' && data.message?.content) {
-      // Get or create streaming messages map for this session
-      const streamingMessages = get().streamingMessages;
-      let sessionStreamMap = streamingMessages.get(sessionId);
-      if (!sessionStreamMap) {
-        sessionStreamMap = new Map();
-        streamingMessages.set(sessionId, sessionStreamMap);
+    // Handle new MessageParser output format
+    if (data.type === 'system' && data.subtype === 'message') {
+      // New message from parser
+      if (data.message) {
+        get().addMessage(sessionId, data.message);
       }
+    } else if (data.type === 'system' && data.subtype === 'message-update') {
+      // Message update (streaming delta)
+      if (data.updates && data.updates.id) {
+        const messages = new Map(get().messages);
+        const sessionMessages = messages.get(sessionId) || [];
+        const msgIndex = sessionMessages.findIndex(m => m.id === data.updates.id);
 
-      // Process each content item in the assistant message
-      for (const content of data.message.content) {
-        if (content.type === 'text' && content.text) {
-          // Accumulate text content for this message ID
-          const existingMessage = sessionStreamMap.get(`text-${messageId}`);
-          if (existingMessage) {
-            // Create a new message object with updated content (don't mutate)
-            const updatedMessage = {
-              ...existingMessage,
-              content: existingMessage.content + content.text,
-            };
-
-            // Update in streaming map
-            sessionStreamMap.set(`text-${messageId}`, updatedMessage);
-
-            // Update the message in the list
-            const messages = new Map(get().messages);
-            const sessionMessages = messages.get(sessionId) || [];
-            const msgIndex = sessionMessages.findIndex(m => m.id === existingMessage.id);
-            if (msgIndex !== -1) {
-              const updatedMessages = [...sessionMessages];
-              updatedMessages[msgIndex] = updatedMessage;
-              messages.set(sessionId, updatedMessages);
-              set({ messages });
-              // Don't auto-save during streaming chunks
-            }
-          } else {
-            // Create new message for this text stream
-            const newMessage: Message = {
-              id: crypto.randomUUID(),
-              sessionId,
-              timestamp: new Date().toISOString(),
-              type: 'assistant',
-              content: content.text,
-            };
-            sessionStreamMap.set(`text-${messageId}`, newMessage);
-            get().addMessage(sessionId, newMessage);
-          }
-        } else if (content.type === 'thinking' && content.thinking) {
-          // Accumulate thinking content
-          const existingMessage = sessionStreamMap.get(`thinking-${messageId}`);
-          if (existingMessage) {
-            // Create a new message object with updated content (don't mutate)
-            const updatedMessage = {
-              ...existingMessage,
-              content: existingMessage.content + content.thinking,
-            };
-
-            // Update in streaming map
-            sessionStreamMap.set(`thinking-${messageId}`, updatedMessage);
-
-            const messages = new Map(get().messages);
-            const sessionMessages = messages.get(sessionId) || [];
-            const msgIndex = sessionMessages.findIndex(m => m.id === existingMessage.id);
-            if (msgIndex !== -1) {
-              const updatedMessages = [...sessionMessages];
-              updatedMessages[msgIndex] = updatedMessage;
-              messages.set(sessionId, updatedMessages);
-              set({ messages });
-              // Don't auto-save during streaming chunks
-            }
-          } else {
-            const newMessage: Message = {
-              id: crypto.randomUUID(),
-              sessionId,
-              timestamp: new Date().toISOString(),
-              type: 'thinking',
-              content: content.thinking,
-            };
-            sessionStreamMap.set(`thinking-${messageId}`, newMessage);
-            get().addMessage(sessionId, newMessage);
-          }
-        } else if (content.type === 'tool_use') {
-          // Tool execution - these don't accumulate
-          const toolInfo = `🔧 Executing: ${content.name}`;
-          let toolInput = '';
-
-          if (content.input) {
-            // Special formatting for TodoWrite
-            if (content.name === 'TodoWrite' && content.input.todos) {
-              toolInput = '\nTodo List Update:';
-              for (const todo of content.input.todos) {
-                const status = todo.status === 'completed' ? '✅' :
-                  todo.status === 'in_progress' ? '🔄' : '⏳';
-                toolInput += `\n${status} ${todo.content}`;
-              }
-            }
-          }
-
-          get().addMessage(sessionId, {
-            id: crypto.randomUUID(),
-            sessionId,
-            timestamp: new Date().toISOString(),
-            type: 'tool',
-            content: toolInput || toolInfo,
-            metadata: {
-              toolName: content.name,
-              toolInfo: toolInfo,
-              rawInput: content.input,
-            },
-          });
+        if (msgIndex !== -1) {
+          const updatedMessages = [...sessionMessages];
+          updatedMessages[msgIndex] = {
+            ...updatedMessages[msgIndex],
+            ...data.updates,
+          };
+          messages.set(sessionId, updatedMessages);
+          set({ messages });
+          // Don't auto-save during streaming chunks
         }
       }
-    } else if (data.type === 'user' && data.message?.content) {
-      // Process tool results from user messages
-      for (const content of data.message.content) {
-        if (content.type === 'tool_result') {
-          let resultContent = content.content || 'Tool executed successfully';
+    } else if (data.type === 'system' && data.subtype === 'session-state-update') {
+      // Update session state (e.g., isProcessing)
+      if (data.sessionUpdate) {
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId ? { ...s, ...data.sessionUpdate } : s
+          ),
+        }));
 
-          // Stringify if content is an object or array
-          if (typeof resultContent === 'object' && resultContent !== null) {
-            resultContent = JSON.stringify(resultContent, null, 2);
-          }
-
-          const isError = content.is_error || false;
-          const toolName = content.tool_name || 'Unknown';
-
-          // Don't show tool result for Read, Edit, TodoWrite, MultiEdit unless there's an error
-          const shouldHide = (toolName === 'Read' || toolName === 'Edit' ||
-                             toolName === 'TodoWrite' || toolName === 'MultiEdit') && !isError;
-
-          if (!shouldHide) {
-            get().addMessage(sessionId, {
-              id: crypto.randomUUID(),
-              sessionId,
-              timestamp: new Date().toISOString(),
-              type: 'tool-result',
-              content: resultContent,
-              metadata: {
-                isError: isError,
-                toolName: toolName,
-                hidden: shouldHide,
+        // Save messages if processing is complete
+        if (data.sessionUpdate.isProcessing === false) {
+          const sessionMessages = get().messages.get(sessionId) || [];
+          window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
+        }
+      }
+    } else if (data.type === 'system' && data.subtype === 'stats') {
+      // Update session with token usage and cost
+      if (data.stats) {
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId ? {
+              ...s,
+              totalCost: (s.totalCost || 0) + (data.stats?.cost || 0),
+              tokenUsage: {
+                inputTokens: (s.tokenUsage?.inputTokens || 0) + (data.stats?.tokens?.input || 0),
+                outputTokens: (s.tokenUsage?.outputTokens || 0) + (data.stats?.tokens?.output || 0),
+                cacheCreationTokens: s.tokenUsage?.cacheCreationTokens || 0,
+                cacheReadTokens: s.tokenUsage?.cacheReadTokens || 0,
               },
-            });
-          }
-        }
+            } : s
+          ),
+        }));
       }
     } else if (data.type === 'system' && data.subtype === 'session-updated') {
       // Update session with new claudeSessionId
@@ -356,28 +262,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         const sessionMessages = get().messages.get(sessionId) || [];
         window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
       }
-    } else if (data.type === 'result' && data.subtype === 'success') {
-      // Clear streaming messages for this session
-      const streamingMessages = get().streamingMessages;
-      streamingMessages.delete(sessionId);
-      set({ streamingMessages: new Map(streamingMessages) });
-
-      // Update session processing state
-      set((state) => ({
-        sessions: state.sessions.map((s) =>
-          s.id === sessionId ? { ...s, isProcessing: false } : s
-        ),
-      }));
-
-      // Save messages now that streaming is complete
-      const sessionMessages = get().messages.get(sessionId) || [];
-      window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
     } else if (data.type === 'system' && data.subtype === 'stopped') {
       // Process was stopped by user
-      const streamingMessages = get().streamingMessages;
-      streamingMessages.delete(sessionId);
-      set({ streamingMessages: new Map(streamingMessages) });
-
       set((state) => ({
         sessions: state.sessions.map((s) =>
           s.id === sessionId ? { ...s, isProcessing: false } : s
@@ -388,18 +274,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const sessionMessages = get().messages.get(sessionId) || [];
       window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
     } else if (data.type === 'system' && data.subtype === 'error') {
-      // Clear streaming messages for this session
-      const streamingMessages = get().streamingMessages;
-      streamingMessages.delete(sessionId);
-      set({ streamingMessages: new Map(streamingMessages) });
-
-      get().addMessage(sessionId, {
-        id: crypto.randomUUID(),
-        sessionId,
-        timestamp: new Date().toISOString(),
-        type: 'error',
-        content: data.message?.content || 'An error occurred',
-      });
+      // Add error message if not already created by parser
+      if (data.message?.content) {
+        get().addMessage(sessionId, {
+          id: crypto.randomUUID(),
+          sessionId,
+          timestamp: new Date().toISOString(),
+          type: 'error',
+          content: data.message.content,
+        });
+      }
 
       set((state) => ({
         sessions: state.sessions.map((s) =>
