@@ -447,8 +447,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         set({ sessions: updatedSessions });
       }
 
-      // Optionally remove or update the permission request message to show it was responded to
-      // For now we just send the response
+      // Remove the permission request message from the chat
+      const messages = new Map(get().messages);
+      for (const [sessionId, sessionMessages] of messages.entries()) {
+        const filteredMessages = sessionMessages.filter(m => m.id !== requestId);
+        if (filteredMessages.length !== sessionMessages.length) {
+          messages.set(sessionId, filteredMessages);
+          set({ messages });
+          // Save updated messages
+          window.electronAPI.saveSessionMessages(sessionId, filteredMessages);
+          break;
+        }
+      }
     } catch (error) {
       console.error('Failed to respond to permission:', error);
     }
