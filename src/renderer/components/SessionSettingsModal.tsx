@@ -14,7 +14,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({ session, on
     <div className="modal-overlay" onClick={onClose}>
       <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
-          <h2>Session Settings: {session.name}</h2>
+          <h2>Settings: {session.name}</h2>
           <button className="btn-icon close" onClick={onClose}>
             ×
           </button>
