@@ -1,0 +1,71 @@
+import { contextBridge, ipcRenderer } from 'electron';
+
+// IPC Channel names - duplicated here to avoid module resolution issues in preload
+const IPC_CHANNELS = {
+  CREATE_SESSION: 'session:create',
+  DELETE_SESSION: 'session:delete',
+  SWITCH_SESSION: 'session:switch',
+  UPDATE_SESSION: 'session:update',
+  GET_SESSIONS: 'session:get-all',
+  GET_SESSION_MESSAGES: 'session:get-messages',
+  SAVE_SESSION_MESSAGES: 'session:save-messages',
+  SEND_MESSAGE: 'claude:send-message',
+  STOP_PROCESS: 'claude:stop',
+  STREAM_DATA: 'claude:stream-data',
+  SAVE_CONVERSATION: 'conversation:save',
+  LOAD_CONVERSATION: 'conversation:load',
+  GET_CONVERSATIONS: 'conversation:get-all',
+  GET_SETTINGS: 'settings:get',
+  UPDATE_SETTINGS: 'settings:update',
+  PERMISSION_REQUEST: 'permission:request',
+  PERMISSION_RESPONSE: 'permission:response',
+  MINIMIZE_WINDOW: 'window:minimize',
+  MAXIMIZE_WINDOW: 'window:maximize',
+  CLOSE_WINDOW: 'window:close',
+  SELECT_FOLDER: 'dialog:select-folder',
+} as const;
+
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
+contextBridge.exposeInMainWorld('electronAPI', {
+  // Session management
+  createSession: (config: any) => ipcRenderer.invoke(IPC_CHANNELS.CREATE_SESSION, config),
+  deleteSession: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_SESSION, sessionId),
+  switchSession: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.SWITCH_SESSION, sessionId),
+  getSessions: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SESSIONS),
+  getSessionMessages: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_SESSION_MESSAGES, sessionId),
+  saveSessionMessages: (sessionId: string, messages: any[], claudeSessionId?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SAVE_SESSION_MESSAGES, { sessionId, messages, claudeSessionId }),
+  getArchivedConversations: (sessionId: string) => ipcRenderer.invoke('session:get-archived-conversations', sessionId),
+  loadArchivedConversation: (filename: string) => ipcRenderer.invoke('session:load-archived-conversation', filename),
+  getArchivedClaudeSessionId: (filename: string) => ipcRenderer.invoke('session:get-archived-claude-session-id', filename),
+
+  // Claude communication
+  sendMessage: (sessionId: string, message: string, config: any) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SEND_MESSAGE, { sessionId, message, config }),
+  stopProcess: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.STOP_PROCESS, sessionId),
+
+  // Listen for stream data
+  onStreamData: (callback: (data: any) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.STREAM_DATA, (_, data) => callback(data));
+  },
+
+  // Permissions
+  onPermissionRequest: (callback: (request: any) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.PERMISSION_REQUEST, (_, request) => callback(request));
+  },
+  respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PERMISSION_RESPONSE, { requestId, allowed, alwaysAllow }),
+
+  // Window controls
+  minimizeWindow: () => ipcRenderer.send(IPC_CHANNELS.MINIMIZE_WINDOW),
+  maximizeWindow: () => ipcRenderer.send(IPC_CHANNELS.MAXIMIZE_WINDOW),
+  closeWindow: () => ipcRenderer.send(IPC_CHANNELS.CLOSE_WINDOW),
+
+  // Settings
+  getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS),
+  updateSettings: (settings: any) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_SETTINGS, settings),
+
+  // Dialog
+  selectFolder: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_FOLDER),
+});
