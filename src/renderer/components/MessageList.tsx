@@ -194,7 +194,6 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
       case 'tool-result':
         const isError = metadata?.isError || false;
         const isResultCollapsed = collapsedTools.has(message.id);
-        const resultToolName = metadata?.toolName || 'Unknown';
 
         // Format tool result content
         const { formattedContent, isJson } = MessageRenderer.formatToolResultContent(content);
@@ -213,7 +212,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                 {isError ? '❌' : '✅'}
               </div>
               <span className="message-label">
-                {isError ? 'Error' : 'Result'}: {resultToolName}
+                {isError ? 'Error' : 'Result'}
               </span>
               <span className="collapse-icon">
                 {isResultCollapsed ? '▶' : '▼'}

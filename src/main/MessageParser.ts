@@ -23,6 +23,7 @@ export interface ParsedMessage {
 export class MessageParser {
   private currentContentBlocks: Map<string, Map<string, any>> = new Map();
   private messageIds: Map<string, string> = new Map();
+  private toolUseIdToName: Map<string, string> = new Map();
 
   /**
    * Parse incoming Claude stream data
@@ -286,6 +287,10 @@ export class MessageParser {
         };
 
       case 'tool_use':
+        // Store tool_use_id -> tool name mapping for later result matching
+        if (block.id && block.name) {
+          this.toolUseIdToName.set(block.id, block.name);
+        }
         return {
           message: this.createMessage(
             sessionId,
@@ -340,8 +345,8 @@ export class MessageParser {
    * Extract tool name from tool_use_id
    */
   private extractToolName(toolUseId?: string): string {
-    // Tool use IDs might contain tool name info, but for now just return unknown
-    return 'Unknown';
+    if (!toolUseId) return 'Unknown';
+    return this.toolUseIdToName.get(toolUseId) || 'Unknown';
   }
 
   /**
@@ -404,5 +409,7 @@ export class MessageParser {
       this.currentContentBlocks.delete(key);
       this.messageIds.delete(key);
     }
+    // Note: toolUseIdToName is kept globally as tool_use_ids are unique across sessions
+    // and may be referenced by results that come in later
   }
 }
