@@ -28,6 +28,9 @@ interface SessionStore {
   toggleYoloMode: (sessionId: string) => void;
 }
 
+// Track if stream listener is already registered
+let streamListenerRegistered = false;
+
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   activeSessionId: null,
@@ -56,10 +59,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         set({ activeSessionId: activeSession.id });
       }
 
-      // Listen for stream data
-      window.electronAPI.onStreamData((data: { sessionId: string; data: ClaudeStreamData }) => {
-        get().handleStreamData(data.sessionId, data.data);
-      });
+      // Listen for stream data - only register once!
+      if (!streamListenerRegistered) {
+        window.electronAPI.onStreamData((data: { sessionId: string; data: ClaudeStreamData }) => {
+          get().handleStreamData(data.sessionId, data.data);
+        });
+        streamListenerRegistered = true;
+      }
     } catch (error) {
       console.error('Failed to initialize sessions:', error);
     }
@@ -189,8 +195,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // Process different types of stream data based on plugin's MessageHandler
     const messageId = data.message?.id || crypto.randomUUID();
 
-    console.log('handleStreamData:', data.type, data.subtype, messageId);
-
     if (data.type === 'assistant' && data.message?.content) {
       // Get or create streaming messages map for this session
       const streamingMessages = get().streamingMessages;
@@ -203,25 +207,25 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // Process each content item in the assistant message
       for (const content of data.message.content) {
         if (content.type === 'text' && content.text) {
-          console.log('Text chunk:', content.text);
           // Accumulate text content for this message ID
           const existingMessage = sessionStreamMap.get(`text-${messageId}`);
           if (existingMessage) {
-            // Check if this chunk is already in the message (Claude Code bug workaround)
-            if (existingMessage.content.includes(content.text)) {
-              console.log('Duplicate chunk detected, skipping');
-              continue;
-            }
-            // Append to existing message
-            console.log('Appending to existing message, current content:', existingMessage.content);
-            existingMessage.content += content.text;
+            // Create a new message object with updated content (don't mutate)
+            const updatedMessage = {
+              ...existingMessage,
+              content: existingMessage.content + content.text,
+            };
+
+            // Update in streaming map
+            sessionStreamMap.set(`text-${messageId}`, updatedMessage);
+
             // Update the message in the list
             const messages = new Map(get().messages);
             const sessionMessages = messages.get(sessionId) || [];
             const msgIndex = sessionMessages.findIndex(m => m.id === existingMessage.id);
             if (msgIndex !== -1) {
-              sessionMessages[msgIndex] = { ...existingMessage };
               const updatedMessages = [...sessionMessages];
+              updatedMessages[msgIndex] = updatedMessage;
               messages.set(sessionId, updatedMessages);
               set({ messages });
               // Don't auto-save during streaming chunks
@@ -242,13 +246,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           // Accumulate thinking content
           const existingMessage = sessionStreamMap.get(`thinking-${messageId}`);
           if (existingMessage) {
-            existingMessage.content += content.thinking;
+            // Create a new message object with updated content (don't mutate)
+            const updatedMessage = {
+              ...existingMessage,
+              content: existingMessage.content + content.thinking,
+            };
+
+            // Update in streaming map
+            sessionStreamMap.set(`thinking-${messageId}`, updatedMessage);
+
             const messages = new Map(get().messages);
             const sessionMessages = messages.get(sessionId) || [];
             const msgIndex = sessionMessages.findIndex(m => m.id === existingMessage.id);
             if (msgIndex !== -1) {
-              sessionMessages[msgIndex] = { ...existingMessage };
               const updatedMessages = [...sessionMessages];
+              updatedMessages[msgIndex] = updatedMessage;
               messages.set(sessionId, updatedMessages);
               set({ messages });
               // Don't auto-save during streaming chunks

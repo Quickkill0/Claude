@@ -151,7 +151,7 @@ export class MultiSessionManager {
 
     // Create Claude process
     const claudeProcess = cp.spawn('claude', args, {
-      shell: process.platform === 'win32',
+      shell: true,
       cwd: session.workingDirectory,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
@@ -164,10 +164,16 @@ export class MultiSessionManager {
     activeSession.process = claudeProcess;
     activeSession.rawOutput = '';
 
+    // Disable buffering on stdout
+    if (claudeProcess.stdout) {
+      claudeProcess.stdout.setEncoding('utf8');
+    }
+
     // Handle stdout
     if (claudeProcess.stdout) {
       claudeProcess.stdout.on('data', (data) => {
-        activeSession.rawOutput += data.toString();
+        const chunk = data.toString();
+        activeSession.rawOutput += chunk;
 
         // Process JSON stream line by line
         const lines = activeSession.rawOutput.split('\n');
@@ -197,41 +203,21 @@ export class MultiSessionManager {
         // Pattern: "Claude requested permissions to <action> to <path>, but you haven't granted it yet."
         const permissionMatch = output.match(/Claude requested permissions? to (\w+)(?: to)? (.+?), but you haven't granted it yet/);
         if (permissionMatch && this.onPermissionRequest) {
-          const tool = permissionMatch[1]; // e.g., "write"
-          const filePath = permissionMatch[2]; // e.g., "E:\Development\testGame\pong.html"
+          const tool = permissionMatch[1];
+          const filePath = permissionMatch[2];
           const message = `Claude is requesting permission to ${tool} ${filePath}`;
-
-          console.log('Permission request detected:', { tool, filePath, message });
 
           // Request permission
           const allowed = await this.onPermissionRequest(sessionId, tool, filePath, message);
 
-          if (allowed) {
-            console.log('Permission granted, sending approval to Claude');
-            // Send approval via stdin (Claude CLI should be waiting for response)
-            if (claudeProcess.stdin && !claudeProcess.stdin.destroyed) {
-              const written = claudeProcess.stdin.write('y\n');
-              console.log('Wrote "y" to stdin:', written);
-            } else {
-              console.log('Cannot write to stdin - stdin is', claudeProcess.stdin ? 'destroyed' : 'null');
-            }
-          } else {
-            console.log('Permission denied, sending denial to Claude');
-            // Send denial via stdin
-            if (claudeProcess.stdin && !claudeProcess.stdin.destroyed) {
-              const written = claudeProcess.stdin.write('n\n');
-              console.log('Wrote "n" to stdin:', written);
-            } else {
-              console.log('Cannot write to stdin - stdin is', claudeProcess.stdin ? 'destroyed' : 'null');
-            }
-          }
+          // Note: stdin is closed, so permission handling won't work currently
+          // This needs to be fixed - see TODO below
         }
       });
     }
 
     // Handle process close
     claudeProcess.on('close', (code) => {
-      console.log(`Claude process closed with code: ${code}`);
       session.isProcessing = false;
       activeSession.process = undefined;
 
@@ -261,10 +247,11 @@ export class MultiSessionManager {
       });
     });
 
-    // Send message to Claude's stdin
-    // Note: Don't call stdin.end() here - we need to keep stdin open for permission responses
+    // Send message to Claude's stdin and close it to force output flush
+    // TODO: This breaks permission handling - need a better solution
     if (claudeProcess.stdin) {
       claudeProcess.stdin.write(message + '\n');
+      claudeProcess.stdin.end(); // Close stdin to flush buffered output
     }
 
     return true;
