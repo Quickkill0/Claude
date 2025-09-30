@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { Message } from '../../shared/types';
+import { useSessionStore } from '../store/sessionStore';
 
 interface MessageListProps {
   messages: Message[];
@@ -13,6 +14,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   const [collapsedThinking, setCollapsedThinking] = useState<Set<string>>(new Set());
   const [collapsedTools, setCollapsedTools] = useState<Set<string>>(new Set());
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const { respondToPermission } = useSessionStore();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -217,6 +219,17 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         const isResultCollapsed = collapsedTools.has(message.id);
         const resultToolName = metadata?.toolName || 'Unknown';
 
+        // Try to parse and format JSON content
+        let formattedContent = content;
+        let isJson = false;
+        try {
+          const parsed = JSON.parse(content);
+          formattedContent = JSON.stringify(parsed, null, 2);
+          isJson = true;
+        } catch {
+          // Not JSON, use as is
+        }
+
         return (
           <div
             key={message.id}
@@ -246,7 +259,42 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
             </div>
             {!isResultCollapsed && (
               <div className="tool-result-body">
-                <pre>{content}</pre>
+                {isJson ? (
+                  <SyntaxHighlighter
+                    style={vscDarkPlus}
+                    language="json"
+                    PreTag="div"
+                    customStyle={{ margin: 0, borderRadius: '4px' }}
+                  >
+                    {formattedContent}
+                  </SyntaxHighlighter>
+                ) : (
+                  <ReactMarkdown
+                    components={{
+                      code({ node, inline, className, children, ...props }) {
+                        const match = /language-(\w+)/.exec(className || '');
+                        const codeString = String(children).replace(/\n$/, '');
+                        return !inline && match ? (
+                          <SyntaxHighlighter
+                            style={vscDarkPlus}
+                            language={match[1]}
+                            PreTag="div"
+                            customStyle={{ margin: 0 }}
+                            {...props}
+                          >
+                            {codeString}
+                          </SyntaxHighlighter>
+                        ) : (
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
+                        );
+                      },
+                    }}
+                  >
+                    {formattedContent}
+                  </ReactMarkdown>
+                )}
               </div>
             )}
           </div>
@@ -275,6 +323,64 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
               </div>
               <div className="message-body error-body">
                 {content}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'permission-request':
+        const permissionRequest = metadata?.permissionRequest;
+        if (!permissionRequest) return null;
+
+        const handlePermissionResponse = async (allowed: boolean, alwaysAllow: boolean) => {
+          await respondToPermission(permissionRequest.id, allowed, alwaysAllow);
+        };
+
+        return (
+          <div key={message.id} className="message permission-request">
+            <div className="message-avatar">🔐</div>
+            <div className="message-content">
+              <div className="message-header">
+                <span className="message-sender">Permission Required</span>
+                <span className="message-time">
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+              <div className="message-body">
+                <div className="permission-message">{content}</div>
+                <div className="permission-details">
+                  <div className="detail-row">
+                    <span className="detail-label">Tool:</span>
+                    <span className="detail-value">{permissionRequest.tool}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">Path:</span>
+                    <span className="detail-value path">{permissionRequest.path}</span>
+                  </div>
+                </div>
+                <p className="permission-hint">
+                  Choose "Accept Always" to save this permission and skip future prompts for this tool.
+                </p>
+                <div className="permission-actions">
+                  <button
+                    className="btn outlined"
+                    onClick={() => handlePermissionResponse(false, false)}
+                  >
+                    Deny
+                  </button>
+                  <button
+                    className="btn secondary"
+                    onClick={() => handlePermissionResponse(true, false)}
+                  >
+                    Accept Once
+                  </button>
+                  <button
+                    className="btn primary"
+                    onClick={() => handlePermissionResponse(true, true)}
+                  >
+                    Accept Always
+                  </button>
+                </div>
               </div>
             </div>
           </div>

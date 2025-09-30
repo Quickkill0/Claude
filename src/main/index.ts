@@ -220,16 +220,14 @@ function setupIPCHandlers() {
 
     pendingPermissions.delete(requestId);
 
-    // If always allow, save to settings
+    // If always allow, save to permissions.json for the session
     if (alwaysAllow && allowed) {
-      const settings = await persistenceManager.getSettings();
-      settings.alwaysAllowPermissions.push({
-        tool: pending.request.tool,
-        path: pending.request.path,
-        allowed: true,
-        createdAt: new Date().toISOString(),
-      });
-      await persistenceManager.updateSettings({ alwaysAllowPermissions: settings.alwaysAllowPermissions });
+      await sessionManager.savePermissionForSession(
+        pending.request.sessionId,
+        pending.request.tool,
+        pending.request.path
+      );
+      console.log('[PERMISSION] Saved always-allow to permissions.json');
     }
 
     pending.resolve(allowed);

@@ -28,7 +28,7 @@ export interface Message {
   sessionId: string;
   conversationId?: string;
   timestamp: string;
-  type: 'user' | 'assistant' | 'system' | 'tool' | 'tool-result' | 'thinking' | 'error';
+  type: 'user' | 'assistant' | 'system' | 'tool' | 'tool-result' | 'thinking' | 'error' | 'permission-request';
   content: string;
   metadata?: {
     cost?: number;
@@ -39,6 +39,7 @@ export interface Message {
     isError?: boolean;
     hidden?: boolean;
     model?: string;
+    permissionRequest?: PermissionRequest;
   };
 }
 

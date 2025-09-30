@@ -11,6 +11,7 @@ interface ActiveSession {
   rawOutput: string;
   permissionRequestsPath?: string;
   permissionWatcher?: fs.FSWatcher;
+  processingRequests?: Set<string>;
 }
 
 export class MultiSessionManager {
@@ -54,24 +55,21 @@ export class MultiSessionManager {
     // 2. In working directory for Claude CLI to read directly
     const defaultPermissions = {
       alwaysAllow: {
-        Read: true,
-        Write: true,
-        Edit: true,
-        Glob: true,
-        Grep: true,
-        TodoWrite: true,
-        Bash: ['npm install *', 'npm i *', 'npm run *', 'git add *', 'git commit *', 'git push *'],
+        // Minimal auto-approved list - users should add tools they trust via permission prompts
       },
     };
 
-    // Create in permissions directory (for MCP)
+    // Create permissions.json only if it doesn't exist yet
+    // This preserves "Accept Always" choices across multiple messages in the same session
     const permissionsFile = path.join(permissionsPath, 'permissions.json');
     if (!fs.existsSync(permissionsFile)) {
       fs.writeFileSync(permissionsFile, JSON.stringify(defaultPermissions, null, 2));
-      console.log('[PERMISSIONS] Created permissions.json in:', permissionsPath);
+      console.log('[PERMISSIONS] Created new permissions.json in:', permissionsPath);
+    } else {
+      console.log('[PERMISSIONS] Using existing permissions.json from:', permissionsPath);
     }
 
-    // ALSO create in working directory (Claude CLI reads from here)
+    // ALSO create/sync in working directory (Claude CLI reads from here)
     const workingDirSession = this.sessions.get(sessionId);
     if (workingDirSession) {
       const workingDirPermissions = path.join(workingDirSession.session.workingDirectory, '.claude', 'permissions.json');
@@ -81,8 +79,17 @@ export class MultiSessionManager {
         fs.mkdirSync(claudeDir, { recursive: true });
       }
 
-      fs.writeFileSync(workingDirPermissions, JSON.stringify(defaultPermissions, null, 2));
-      console.log('[PERMISSIONS] Created permissions.json in working dir:', workingDirPermissions);
+      // Copy from session permissions to working dir to keep them in sync
+      if (fs.existsSync(permissionsFile)) {
+        const sessionPermissions = fs.readFileSync(permissionsFile, 'utf8');
+        fs.writeFileSync(workingDirPermissions, sessionPermissions);
+        console.log('[PERMISSIONS] Synced permissions to working dir:', workingDirPermissions);
+      }
+    }
+
+    // Initialize set to track in-progress requests
+    if (!activeSession.processingRequests) {
+      activeSession.processingRequests = new Set<string>();
     }
 
     // Watch for .request files
@@ -91,10 +98,22 @@ export class MultiSessionManager {
 
       const requestPath = path.join(permissionsPath, filename);
 
+      // Skip if already processing this file
+      if (activeSession.processingRequests?.has(filename)) {
+        console.log('[PERMISSIONS] Skipping duplicate request:', filename);
+        return;
+      }
+
+      // Mark as processing
+      activeSession.processingRequests?.add(filename);
+
       // Small delay to ensure file is fully written
       setTimeout(async () => {
         try {
-          if (!fs.existsSync(requestPath)) return;
+          if (!fs.existsSync(requestPath)) {
+            activeSession.processingRequests?.delete(filename);
+            return;
+          }
 
           const content = fs.readFileSync(requestPath, 'utf8');
           const request = JSON.parse(content);
@@ -131,6 +150,9 @@ export class MultiSessionManager {
           }
         } catch (error) {
           console.error('[PERMISSIONS] Error handling request:', error);
+        } finally {
+          // Remove from processing set
+          activeSession.processingRequests?.delete(filename);
         }
       }, 100);
     });
@@ -302,6 +324,28 @@ export class MultiSessionManager {
    */
   getAllSessions(): Session[] {
     return Array.from(this.sessions.values()).map((s) => s.session);
+  }
+
+  /**
+   * Saves a permission as always-allow for a specific session
+   */
+  async savePermissionForSession(sessionId: string, tool: string, filePath: string, input?: any): Promise<void> {
+    const permissionsPath = await this.initializePermissionDirectory(sessionId);
+    const request = {
+      tool,
+      path: filePath,
+      input,
+    };
+    this.saveAlwaysAllowPermission(permissionsPath, request);
+
+    // Also update the working directory permissions.json
+    const activeSession = this.sessions.get(sessionId);
+    if (activeSession) {
+      const workingDirPermissions = path.join(activeSession.session.workingDirectory, '.claude', 'permissions.json');
+      if (fs.existsSync(workingDirPermissions)) {
+        this.saveAlwaysAllowPermission(path.join(activeSession.session.workingDirectory, '.claude'), request);
+      }
+    }
   }
 
   /**

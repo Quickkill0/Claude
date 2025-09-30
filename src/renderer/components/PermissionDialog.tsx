@@ -7,14 +7,16 @@ interface PermissionDialogProps {
 }
 
 const PermissionDialog: React.FC<PermissionDialogProps> = ({ request, onRespond }) => {
-  const [alwaysAllow, setAlwaysAllow] = useState(false);
-
-  const handleAllow = () => {
-    onRespond(true, alwaysAllow);
-  };
-
   const handleDeny = () => {
     onRespond(false, false);
+  };
+
+  const handleAllow = () => {
+    onRespond(true, false);
+  };
+
+  const handleAlwaysAllow = () => {
+    onRespond(true, true);
   };
 
   return (
@@ -39,22 +41,20 @@ const PermissionDialog: React.FC<PermissionDialogProps> = ({ request, onRespond 
             </div>
           </div>
 
-          <label className="permission-checkbox">
-            <input
-              type="checkbox"
-              checked={alwaysAllow}
-              onChange={(e) => setAlwaysAllow(e.target.checked)}
-            />
-            <span>Always allow this tool for this path</span>
-          </label>
+          <p className="permission-hint">
+            Choose "Accept Always" to save this permission and skip future prompts for this tool.
+          </p>
         </div>
 
         <div className="permission-actions">
           <button className="btn outlined" onClick={handleDeny}>
             Deny
           </button>
-          <button className="btn primary" onClick={handleAllow}>
-            Allow
+          <button className="btn secondary" onClick={handleAllow}>
+            Accept Once
+          </button>
+          <button className="btn primary" onClick={handleAlwaysAllow}>
+            Accept Always
           </button>
         </div>
       </div>

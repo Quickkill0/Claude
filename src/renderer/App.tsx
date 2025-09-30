@@ -1,31 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import TitleBar from './components/TitleBar';
 import ChatWindow from './components/ChatWindow';
 import Sidebar from './components/Sidebar';
-import PermissionDialog from './components/PermissionDialog';
 import { useSessionStore } from './store/sessionStore';
 import type { PermissionRequest } from '../shared/types';
 
 const App: React.FC = () => {
   const { sessions, activeSessionId, initializeSessions, createSession, isSidebarOpen, toggleSidebar } = useSessionStore();
-  const [pendingPermission, setPendingPermission] = useState<PermissionRequest | null>(null);
+  const permissionListenerRegistered = useRef(false);
 
   useEffect(() => {
-    // Initialize sessions from Electron
+    // Initialize sessions from Electron - only once
     initializeSessions();
 
-    // Listen for permission requests
-    window.electronAPI.onPermissionRequest((request: PermissionRequest) => {
-      setPendingPermission(request);
-    });
-  }, []);
-
-  const handlePermissionResponse = async (allowed: boolean, alwaysAllow: boolean) => {
-    if (pendingPermission) {
-      await window.electronAPI.respondToPermission(pendingPermission.id, allowed, alwaysAllow);
-      setPendingPermission(null);
+    // Register permission request listener only once
+    if (!permissionListenerRegistered.current) {
+      window.electronAPI.onPermissionRequest((request: PermissionRequest) => {
+        // Access the store directly to avoid dependency issues
+        useSessionStore.getState().addPermissionRequest(request);
+      });
+      permissionListenerRegistered.current = true;
     }
-  };
+  }, []);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
@@ -64,13 +60,6 @@ const App: React.FC = () => {
           )}
         </div>
       </div>
-
-      {pendingPermission && (
-        <PermissionDialog
-          request={pendingPermission}
-          onRespond={handlePermissionResponse}
-        />
-      )}
     </div>
   );
 };

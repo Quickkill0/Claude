@@ -9,7 +9,7 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
-  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadArchivedConversation, toggleYoloMode } = useSessionStore();
+  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadArchivedConversation } = useSessionStore();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -70,13 +70,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           <h3>{session.name}</h3>
         </div>
         <div className="session-actions">
-          <button
-            className={`btn small ${session.yoloMode ? 'primary' : 'outlined'}`}
-            onClick={() => toggleYoloMode(session.id)}
-            title={session.yoloMode ? 'YOLO Mode: ON (auto-approve all permissions)' : 'YOLO Mode: OFF (require permission prompts)'}
-          >
-            {session.yoloMode ? '🚀 YOLO' : '🔒 Safe'}
-          </button>
           <button className="btn outlined small" onClick={handleShowHistory} title="View conversation history">
             📜 History
           </button>

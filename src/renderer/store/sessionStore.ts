@@ -26,6 +26,8 @@ interface SessionStore {
   updateSessionModel: (sessionId: string, model: 'opus' | 'sonnet' | 'sonnet1m' | 'default') => void;
   loadArchivedConversation: (sessionId: string, filename: string) => Promise<void>;
   toggleYoloMode: (sessionId: string) => void;
+  addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => void;
+  respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) => Promise<void>;
 }
 
 // Track if stream listener is already registered
@@ -534,5 +536,31 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // Save updated session
     const sessionMessages = get().messages.get(sessionId) || [];
     window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
+  },
+
+  addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => {
+    // Add permission request as a message in the chat
+    const message: Message = {
+      id: request.id,
+      sessionId: request.sessionId,
+      timestamp: request.timestamp,
+      type: 'permission-request',
+      content: request.message,
+      metadata: {
+        permissionRequest: request,
+      },
+    };
+    get().addMessage(request.sessionId, message);
+  },
+
+  respondToPermission: async (requestId: string, allowed: boolean, alwaysAllow: boolean) => {
+    try {
+      await window.electronAPI.respondToPermission(requestId, allowed, alwaysAllow);
+
+      // Optionally remove or update the permission request message to show it was responded to
+      // For now we just send the response
+    } catch (error) {
+      console.error('Failed to respond to permission:', error);
+    }
   },
 }));
