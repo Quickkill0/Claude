@@ -87,21 +87,21 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
             <span className={`status-dot ${session.isProcessing ? 'processing' : 'ready'}`}></span>
             <span className="status-text">{session.isProcessing ? 'Processing' : 'Ready'}</span>
             <span className="status-separator">•</span>
-            <span className="status-cost">$0.00 • 0 tokens</span>
+            <span className="status-cost">
+              ${(session.totalCost || 0).toFixed(4)} • {((session.tokenUsage?.inputTokens || 0) + (session.tokenUsage?.outputTokens || 0)).toLocaleString()} tokens
+              {session.tokenUsage && (session.tokenUsage.cacheCreationTokens > 0 || session.tokenUsage.cacheReadTokens > 0) && (
+                <span className="cache-info" title={`Cache: ${session.tokenUsage.cacheCreationTokens.toLocaleString()} created, ${session.tokenUsage.cacheReadTokens.toLocaleString()} read`}>
+                  {' '}(📦 {(session.tokenUsage.cacheCreationTokens + session.tokenUsage.cacheReadTokens).toLocaleString()})
+                </span>
+              )}
+            </span>
           </div>
-        </div>
-
-        {session.isProcessing && (
-          <div className="processing-bar">
-            <div className="processing-info">
-              <span className="processing-spinner">⏳</span>
-              <span>Processing...</span>
-            </div>
-            <button className="btn stop" onClick={handleStop}>
+          {session.isProcessing && (
+            <button className="btn-stop-status" onClick={handleStop} title="Stop processing">
               ⏹ Stop
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         <textarea
           ref={inputRef}

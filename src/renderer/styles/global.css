@@ -821,6 +821,10 @@ body {
   padding: 8px 16px;
   background: var(--bg-tertiary);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .status-indicator {
@@ -828,6 +832,7 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 12px;
+  flex: 1;
 }
 
 .status-dot {
@@ -868,48 +873,47 @@ body {
 
 .status-cost {
   color: var(--text-secondary);
-}
-
-.processing-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  background: linear-gradient(135deg, var(--bg-tertiary) 0%, #3a3a3d 100%);
-  font-size: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  animation: processingPulse 2s ease-in-out infinite;
+  gap: 4px;
 }
 
-.processing-info {
+.cache-info {
+  color: var(--accent-blue);
+  font-size: 11px;
+  cursor: help;
+  transition: all 0.2s ease;
+}
+
+.cache-info:hover {
+  color: var(--accent-green);
+}
+
+.btn-stop-status {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #f48771 0%, #d16b5a 100%);
+  color: white;
+  border: 1px solid rgba(244, 135, 113, 0.3);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--text-primary);
-  font-size: 12px;
+  gap: 4px;
+  box-shadow: 0 2px 8px rgba(244, 135, 113, 0.2);
 }
 
-.processing-spinner {
-  font-size: 12px;
-  animation: spin 1s linear infinite;
+.btn-stop-status:hover {
+  background: linear-gradient(135deg, #d16b5a 0%, #c0392b 100%);
+  box-shadow: 0 4px 12px rgba(244, 135, 113, 0.3);
+  transform: translateY(-1px);
 }
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes processingPulse {
-  0%, 100% {
-    border-color: rgba(255, 255, 255, 0.05);
-  }
-  50% {
-    border-color: rgba(78, 201, 176, 0.3);
-  }
+.btn-stop-status:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(244, 135, 113, 0.2);
 }
 
 .input-field {
