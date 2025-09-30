@@ -28,6 +28,7 @@ interface SessionStore {
   toggleYoloMode: (sessionId: string) => void;
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => void;
   respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) => Promise<void>;
+  removeSessionPermission: (sessionId: string, index: number) => Promise<void>;
 }
 
 // Track if stream listener is already registered
@@ -555,12 +556,33 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   respondToPermission: async (requestId: string, allowed: boolean, alwaysAllow: boolean) => {
     try {
-      await window.electronAPI.respondToPermission(requestId, allowed, alwaysAllow);
+      const updatedSessions = await window.electronAPI.respondToPermission(requestId, allowed, alwaysAllow);
+
+      // Update sessions with latest permissions if alwaysAllow was checked
+      if (updatedSessions && alwaysAllow && allowed) {
+        set({ sessions: updatedSessions });
+      }
 
       // Optionally remove or update the permission request message to show it was responded to
       // For now we just send the response
     } catch (error) {
       console.error('Failed to respond to permission:', error);
+    }
+  },
+
+  removeSessionPermission: async (sessionId: string, index: number) => {
+    try {
+      // Call backend to remove permission and get updated sessions
+      const updatedSessions = await window.electronAPI.removeSessionPermission(sessionId, index);
+
+      // Update local state with backend response
+      set({ sessions: updatedSessions });
+
+      // Save updated session
+      const sessionMessages = get().messages.get(sessionId) || [];
+      await window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
+    } catch (error) {
+      console.error('Failed to remove session permission:', error);
     }
   },
 }));

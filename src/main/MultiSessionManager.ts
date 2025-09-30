@@ -345,6 +345,135 @@ export class MultiSessionManager {
       if (fs.existsSync(workingDirPermissions)) {
         this.saveAlwaysAllowPermission(path.join(activeSession.session.workingDirectory, '.claude'), request);
       }
+
+      // Update session object's sessionPermissions array
+      const permission = {
+        tool,
+        path: filePath,
+        allowed: true,
+        createdAt: new Date().toISOString(),
+      };
+
+      if (!activeSession.session.sessionPermissions) {
+        activeSession.session.sessionPermissions = [];
+      }
+
+      // Check if permission already exists
+      const exists = activeSession.session.sessionPermissions.some(
+        p => p.tool === tool && p.path === filePath
+      );
+
+      if (!exists) {
+        activeSession.session.sessionPermissions.push(permission);
+      }
+    }
+  }
+
+  /**
+   * Removes a permission from a session
+   */
+  async removePermissionForSession(sessionId: string, index: number): Promise<void> {
+    const activeSession = this.sessions.get(sessionId);
+    if (!activeSession || !activeSession.session.sessionPermissions) {
+      return;
+    }
+
+    const permission = activeSession.session.sessionPermissions[index];
+    if (!permission) return;
+
+    // Remove from session object
+    activeSession.session.sessionPermissions.splice(index, 1);
+
+    // Update permissions.json files
+    const permissionsPath = await this.initializePermissionDirectory(sessionId);
+    this.removePermissionFromFile(permissionsPath, permission);
+
+    // Also update working directory permissions.json
+    const workingDirPermissions = path.join(activeSession.session.workingDirectory, '.claude');
+    if (fs.existsSync(workingDirPermissions)) {
+      this.removePermissionFromFile(workingDirPermissions, permission);
+    }
+  }
+
+  /**
+   * Removes a permission from permissions.json file
+   */
+  private removePermissionFromFile(permissionsDir: string, permission: import('../shared/types').PermissionRule): void {
+    try {
+      const permissionsFile = path.join(permissionsDir, 'permissions.json');
+      if (!fs.existsSync(permissionsFile)) return;
+
+      let permissions: any = JSON.parse(fs.readFileSync(permissionsFile, 'utf8'));
+
+      if (!permissions.alwaysAllow) return;
+
+      const toolName = permission.tool;
+
+      if (toolName === 'Bash' && Array.isArray(permissions.alwaysAllow[toolName])) {
+        // For Bash, remove the specific command pattern
+        const pattern = permission.path || '';
+        permissions.alwaysAllow[toolName] = permissions.alwaysAllow[toolName].filter(
+          (p: string) => p !== pattern
+        );
+
+        // Remove the tool entry if no patterns left
+        if (permissions.alwaysAllow[toolName].length === 0) {
+          delete permissions.alwaysAllow[toolName];
+        }
+      } else {
+        // For other tools, remove the entire tool entry
+        delete permissions.alwaysAllow[toolName];
+      }
+
+      fs.writeFileSync(permissionsFile, JSON.stringify(permissions, null, 2));
+      console.log(`[PERMISSIONS] Removed permission for ${toolName}`);
+    } catch (error) {
+      console.error('[PERMISSIONS] Error removing permission:', error);
+    }
+  }
+
+  /**
+   * Loads permissions from permissions.json into session object
+   */
+  async loadSessionPermissions(sessionId: string): Promise<void> {
+    const activeSession = this.sessions.get(sessionId);
+    if (!activeSession) return;
+
+    try {
+      const permissionsPath = await this.initializePermissionDirectory(sessionId);
+      const permissionsFile = path.join(permissionsPath, 'permissions.json');
+
+      if (!fs.existsSync(permissionsFile)) return;
+
+      const permissions: any = JSON.parse(fs.readFileSync(permissionsFile, 'utf8'));
+
+      if (!permissions.alwaysAllow) return;
+
+      activeSession.session.sessionPermissions = [];
+
+      // Convert permissions.json format to PermissionRule array
+      for (const [tool, value] of Object.entries(permissions.alwaysAllow)) {
+        if (Array.isArray(value)) {
+          // Bash commands
+          for (const pattern of value) {
+            activeSession.session.sessionPermissions.push({
+              tool,
+              path: pattern,
+              allowed: true,
+              createdAt: new Date().toISOString(),
+            });
+          }
+        } else if (value === true) {
+          // Other tools
+          activeSession.session.sessionPermissions.push({
+            tool,
+            allowed: true,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[PERMISSIONS] Error loading session permissions:', error);
     }
   }
 

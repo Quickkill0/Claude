@@ -12,6 +12,7 @@ export interface Session {
   isActive: boolean;
   isProcessing: boolean;
   yoloMode?: boolean;
+  sessionPermissions?: PermissionRule[];
 }
 
 export interface Conversation {
@@ -165,7 +166,8 @@ declare global {
       updateSettings: (settings: Partial<AppSettings>) => Promise<void>;
       selectFolder: () => Promise<string | null>;
       onPermissionRequest: (callback: (request: PermissionRequest) => void) => void;
-      respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) => Promise<void>;
+      respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) => Promise<Session[]>;
+      removeSessionPermission: (sessionId: string, index: number) => Promise<Session[]>;
     };
   }
 }

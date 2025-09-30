@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
 import ConfirmDialog from './ConfirmDialog';
 import SettingsModal from './SettingsModal';
+import SessionSettingsModal from './SessionSettingsModal';
 
 const Sidebar: React.FC = () => {
-  const { sessions, activeSessionId, createSession, switchSession, deleteSession, isSidebarOpen, toggleYoloMode, updateSessionModel } = useSessionStore();
+  const { sessions, activeSessionId, createSession, switchSession, deleteSession, isSidebarOpen, toggleYoloMode, updateSessionModel, removeSessionPermission } = useSessionStore();
   const [sessionToDelete, setSessionToDelete] = useState<{ id: string; name: string } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [sessionSettingsId, setSessionSettingsId] = useState<string | null>(null);
 
   if (!isSidebarOpen) {
     return null;
@@ -37,6 +39,16 @@ const Sidebar: React.FC = () => {
                 className={`session-item ${session.id === activeSessionId ? 'active' : ''} ${session.isProcessing ? 'processing' : ''}`}
               >
                 <div className="session-item-actions">
+                  <button
+                    className="session-settings-button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSessionSettingsId(session.id);
+                    }}
+                    title="Session settings"
+                  >
+                    ⚙️
+                  </button>
                   <button
                     className={`session-yolo-toggle ${session.yoloMode ? 'active' : ''}`}
                     onClick={(e) => {
@@ -117,6 +129,14 @@ const Sidebar: React.FC = () => {
 
       {showSettings && (
         <SettingsModal onClose={() => setShowSettings(false)} />
+      )}
+
+      {sessionSettingsId && (
+        <SessionSettingsModal
+          session={sessions.find(s => s.id === sessionSettingsId)!}
+          onClose={() => setSessionSettingsId(null)}
+          onRemovePermission={removeSessionPermission}
+        />
       )}
     </div>
   );

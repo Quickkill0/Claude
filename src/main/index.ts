@@ -59,6 +59,11 @@ async function initializeManagers() {
   // Load persisted sessions
   const { sessions, messagesMap } = await persistenceManager.loadSessions();
   sessionManager.restoreSessions(sessions, messagesMap);
+
+  // Load permissions for all sessions
+  for (const session of sessions) {
+    await sessionManager.loadSessionPermissions(session.id);
+  }
 }
 
 // Handle permission request
@@ -216,7 +221,7 @@ function setupIPCHandlers() {
   // Permissions
   ipcMain.handle(IPC_CHANNELS.PERMISSION_RESPONSE, async (_, { requestId, allowed, alwaysAllow }) => {
     const pending = pendingPermissions.get(requestId);
-    if (!pending) return;
+    if (!pending) return null;
 
     pendingPermissions.delete(requestId);
 
@@ -231,6 +236,15 @@ function setupIPCHandlers() {
     }
 
     pending.resolve(allowed);
+
+    // Return updated sessions so frontend can refresh
+    return sessionManager.getAllSessions();
+  });
+
+  ipcMain.handle('session:remove-permission', async (_, { sessionId, index }) => {
+    await sessionManager.removePermissionForSession(sessionId, index);
+    // Return updated sessions
+    return sessionManager.getAllSessions();
   });
 
   // Window controls

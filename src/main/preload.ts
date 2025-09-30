@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) =>
     ipcRenderer.invoke(IPC_CHANNELS.PERMISSION_RESPONSE, { requestId, allowed, alwaysAllow }),
+  removeSessionPermission: (sessionId: string, index: number) =>
+    ipcRenderer.invoke('session:remove-permission', { sessionId, index }),
 
   // Window controls
   minimizeWindow: () => ipcRenderer.send(IPC_CHANNELS.MINIMIZE_WINDOW),
