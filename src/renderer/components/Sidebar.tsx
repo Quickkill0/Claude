@@ -79,21 +79,6 @@ const Sidebar: React.FC = () => {
                   </div>
                   <div className="session-item-info">
                     <div className="session-item-name">{session.name}</div>
-                    <select
-                      className="session-item-model"
-                      value={session.model}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        updateSessionModel(session.id, e.target.value as 'opus' | 'sonnet' | 'sonnet1m' | 'default');
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      disabled={session.isProcessing}
-                    >
-                      <option value="default">Default</option>
-                      <option value="sonnet">Sonnet</option>
-                      <option value="opus">Opus</option>
-                      <option value="sonnet1m">1M</option>
-                    </select>
                   </div>
                 </div>
               </div>
@@ -136,6 +121,7 @@ const Sidebar: React.FC = () => {
           session={sessions.find(s => s.id === sessionSettingsId)!}
           onClose={() => setSessionSettingsId(null)}
           onRemovePermission={removeSessionPermission}
+          onUpdateModel={updateSessionModel}
         />
       )}
     </div>

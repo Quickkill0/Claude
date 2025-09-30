@@ -98,7 +98,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           </div>
           {session.isProcessing && (
             <button className="btn-stop-status" onClick={handleStop} title="Stop processing">
-              ⏹ Stop
+              Stop
             </button>
           )}
         </div>
