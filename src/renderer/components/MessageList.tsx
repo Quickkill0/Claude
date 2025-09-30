@@ -105,50 +105,40 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     switch (type) {
       case 'user':
         return (
-          <div key={message.id} className="message user">
-            <div className="message-avatar">👤</div>
+          <div key={message.id} className="message message-user">
+            <div className="message-header">
+              <div className="message-icon">👤</div>
+              <span className="message-label">You</span>
+              <button
+                className="copy-btn"
+                onClick={() => copyToClipboard(content, `user-${message.id}`)}
+                title="Copy message"
+              >
+                {copiedCode === `user-${message.id}` ? '✓' : '📋'}
+              </button>
+            </div>
             <div className="message-content">
-              <div className="message-header">
-                <span className="message-sender">You</span>
-                <span className="message-time">
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </span>
-              </div>
-              <div className="message-body">
-                <div className="message-text">{content}</div>
-                <button
-                  className="copy-button"
-                  onClick={() => copyToClipboard(content, `user-${message.id}`)}
-                  title="Copy message"
-                >
-                  {copiedCode === `user-${message.id}` ? '✓' : '📋'}
-                </button>
-              </div>
+              <div className="message-text">{content}</div>
             </div>
           </div>
         );
 
       case 'assistant':
         return (
-          <div key={message.id} className="message assistant">
-            <div className="message-avatar">🤖</div>
+          <div key={message.id} className="message message-claude">
+            <div className="message-header">
+              <div className="message-icon">🤖</div>
+              <span className="message-label">Claude</span>
+              <button
+                className="copy-btn"
+                onClick={() => copyMessageContent(content, message.id)}
+                title="Copy message"
+              >
+                {copiedCode === `msg-${message.id}` ? '✓' : '📋'}
+              </button>
+            </div>
             <div className="message-content">
-              <div className="message-header">
-                <span className="message-sender">Claude</span>
-                <span className="message-time">
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </span>
-              </div>
-              <div className="message-body">
-                {MessageRenderer.renderEnhancedMarkdown(content, message.id, renderConfig)}
-                <button
-                  className="copy-button"
-                  onClick={() => copyMessageContent(content, message.id)}
-                  title="Copy message"
-                >
-                  {copiedCode === `msg-${message.id}` ? '✓' : '📋'}
-                </button>
-              </div>
+              {MessageRenderer.renderEnhancedMarkdown(content, message.id, renderConfig)}
             </div>
           </div>
         );
@@ -156,28 +146,17 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
       case 'thinking':
         const isThinkingCollapsed = collapsedThinking.has(message.id);
         return (
-          <div key={message.id} className="message thinking">
-            <div
-              className="thinking-header"
-              onClick={() => toggleThinking(message.id)}
-              style={{ cursor: 'pointer' }}
-            >
-              <div className="thinking-icon">
-                <span className="collapse-icon">
-                  {isThinkingCollapsed ? '▶' : '▼'}
-                </span>
-                💭
-              </div>
-              <div className="thinking-info">
-                <span className="thinking-label">Thinking...</span>
-                <span className="message-time">
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </span>
-              </div>
+          <div key={message.id} className="message message-thinking">
+            <div className="message-header" onClick={() => toggleThinking(message.id)} style={{ cursor: 'pointer' }}>
+              <div className="message-icon">💭</div>
+              <span className="message-label">Thinking</span>
+              <span className="collapse-icon">
+                {isThinkingCollapsed ? '▶' : '▼'}
+              </span>
             </div>
             {!isThinkingCollapsed && (
-              <div className="thinking-content">
-                <div className="thinking-body">{content}</div>
+              <div className="message-content">
+                <div className="message-text">{content}</div>
               </div>
             )}
           </div>
@@ -190,24 +169,22 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         const hasContent = content && content.trim().length > 0;
 
         return (
-          <div key={message.id} className="message tool">
+          <div key={message.id} className="message message-tool">
             <div
-              className="tool-header"
+              className="message-header"
               onClick={() => hasContent && toggleTool(message.id)}
               style={{ cursor: hasContent ? 'pointer' : 'default' }}
             >
-              <div className="tool-icon-wrapper">
-                {hasContent && (
-                  <span className="collapse-icon">
-                    {isToolCollapsed ? '▶' : '▼'}
-                  </span>
-                )}
-                <div className="tool-icon">🔧</div>
-              </div>
-              <div className="tool-info">{displayName}</div>
+              <div className="message-icon">🔧</div>
+              <span className="message-label">{displayName}</span>
+              {hasContent && (
+                <span className="collapse-icon">
+                  {isToolCollapsed ? '▶' : '▼'}
+                </span>
+              )}
             </div>
             {hasContent && !isToolCollapsed && (
-              <div className="tool-body">
+              <div className="message-content">
                 {MessageRenderer.renderToolInput(toolName, content, message.id, renderConfig)}
               </div>
             )}
@@ -225,32 +202,25 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         return (
           <div
             key={message.id}
-            className={`message tool-result ${isError ? 'error' : ''}`}
+            className={`message message-tool-result ${isError ? 'error' : ''}`}
           >
             <div
-              className="tool-result-header"
+              className="message-header"
               onClick={() => toggleTool(message.id)}
               style={{ cursor: 'pointer' }}
             >
-              <div className="tool-result-icon-wrapper">
-                <span className="collapse-icon">
-                  {isResultCollapsed ? '▶' : '▼'}
-                </span>
-                <div className={`message-icon ${isError ? 'error' : 'success'}`}>
-                  {isError ? '❌' : '✅'}
-                </div>
+              <div className="message-icon">
+                {isError ? '❌' : '✅'}
               </div>
-              <div className="tool-result-info">
-                <span className="message-label">
-                  {isError ? 'Error' : 'Result'}: {resultToolName}
-                </span>
-                <span className="message-time">
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </span>
-              </div>
+              <span className="message-label">
+                {isError ? 'Error' : 'Result'}: {resultToolName}
+              </span>
+              <span className="collapse-icon">
+                {isResultCollapsed ? '▶' : '▼'}
+              </span>
             </div>
             {!isResultCollapsed && (
-              <div className="tool-result-body">
+              <div className="message-content">
                 {MessageRenderer.renderToolResult(formattedContent, isJson)}
               </div>
             )}
@@ -259,28 +229,33 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
 
       case 'system':
         return (
-          <div key={message.id} className="message system">
-            <div className="message-avatar">ℹ️</div>
+          <div key={message.id} className="message message-system">
+            <div className="message-header">
+              <div className="message-icon">ℹ️</div>
+              <span className="message-label">System</span>
+            </div>
             <div className="message-content">
-              <div className="message-body">{content}</div>
+              <div className="message-text">{content}</div>
             </div>
           </div>
         );
 
       case 'error':
         return (
-          <div key={message.id} className="message error">
-            <div className="message-avatar">⚠️</div>
+          <div key={message.id} className="message message-error">
+            <div className="message-header">
+              <div className="message-icon">⚠️</div>
+              <span className="message-label">Error</span>
+              <button
+                className="copy-btn"
+                onClick={() => copyToClipboard(content, `error-${message.id}`)}
+                title="Copy error"
+              >
+                {copiedCode === `error-${message.id}` ? '✓' : '📋'}
+              </button>
+            </div>
             <div className="message-content">
-              <div className="message-header">
-                <span className="message-sender">Error</span>
-                <span className="message-time">
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </span>
-              </div>
-              <div className="message-body error-body">
-                {content}
-              </div>
+              <div className="message-text">{content}</div>
             </div>
           </div>
         );
@@ -294,50 +269,45 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         };
 
         return (
-          <div key={message.id} className="message permission-request">
-            <div className="message-avatar">🔐</div>
+          <div key={message.id} className="message message-permission">
+            <div className="message-header">
+              <div className="message-icon">🔐</div>
+              <span className="message-label">Permission Required</span>
+            </div>
             <div className="message-content">
-              <div className="message-header">
-                <span className="message-sender">Permission Required</span>
-                <span className="message-time">
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </span>
+              <div className="permission-message">{content}</div>
+              <div className="permission-details">
+                <div className="detail-row">
+                  <span className="detail-label">Tool:</span>
+                  <span className="detail-value">{permissionRequest.tool}</span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Path:</span>
+                  <span className="detail-value path">{permissionRequest.path}</span>
+                </div>
               </div>
-              <div className="message-body">
-                <div className="permission-message">{content}</div>
-                <div className="permission-details">
-                  <div className="detail-row">
-                    <span className="detail-label">Tool:</span>
-                    <span className="detail-value">{permissionRequest.tool}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Path:</span>
-                    <span className="detail-value path">{permissionRequest.path}</span>
-                  </div>
-                </div>
-                <p className="permission-hint">
-                  Choose "Accept Always" to save this permission and skip future prompts for this tool.
-                </p>
-                <div className="permission-actions">
-                  <button
-                    className="btn outlined"
-                    onClick={() => handlePermissionResponse(false, false)}
-                  >
-                    Deny
-                  </button>
-                  <button
-                    className="btn secondary"
-                    onClick={() => handlePermissionResponse(true, false)}
-                  >
-                    Accept Once
-                  </button>
-                  <button
-                    className="btn primary"
-                    onClick={() => handlePermissionResponse(true, true)}
-                  >
-                    Accept Always
-                  </button>
-                </div>
+              <p className="permission-hint">
+                Choose "Accept Always" to save this permission and skip future prompts for this tool.
+              </p>
+              <div className="permission-actions">
+                <button
+                  className="btn outlined"
+                  onClick={() => handlePermissionResponse(false, false)}
+                >
+                  Deny
+                </button>
+                <button
+                  className="btn secondary"
+                  onClick={() => handlePermissionResponse(true, false)}
+                >
+                  Accept Once
+                </button>
+                <button
+                  className="btn primary"
+                  onClick={() => handlePermissionResponse(true, true)}
+                >
+                  Accept Always
+                </button>
               </div>
             </div>
           </div>
