@@ -82,15 +82,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
       <MessageList messages={sessionMessages} />
 
       <div className="chat-input">
-        {session.isProcessing && (
-          <div className="processing-bar">
-            <span>Claude is processing...</span>
-            <button className="btn stop" onClick={handleStop}>
-              Stop
-            </button>
-          </div>
-        )}
-
         <div className="input-wrapper">
           <textarea
             ref={inputRef}
@@ -109,6 +100,23 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           >
             Send →
           </button>
+        </div>
+
+        <div className="status-bar">
+          <div className="status-left">
+            <div className="status-indicator">
+              <span className={`status-dot ${session.isProcessing ? 'processing' : 'ready'}`}></span>
+              <span className="status-text">{session.isProcessing ? 'Processing' : 'Ready'}</span>
+            </div>
+            <div className="status-cost">
+              $0.00 - 0 tokens
+            </div>
+          </div>
+          {session.isProcessing && (
+            <button className="btn-stop-status" onClick={handleStop}>
+              ⏹ Stop
+            </button>
+          )}
         </div>
       </div>
 
