@@ -82,41 +82,48 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
       <MessageList messages={sessionMessages} />
 
       <div className="chat-input">
-        <div className="input-wrapper">
-          <textarea
-            ref={inputRef}
-            className="input-field"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your message to Claude..."
-            disabled={session.isProcessing}
-            rows={1}
-          />
-          <button
-            className="btn send"
-            onClick={handleSend}
-            disabled={session.isProcessing || !inputText.trim()}
-          >
-            Send →
-          </button>
+        <div className="status-bar-top">
+          <div className="status-indicator">
+            <span className={`status-dot ${session.isProcessing ? 'processing' : 'ready'}`}></span>
+            <span className="status-text">{session.isProcessing ? 'Processing' : 'Ready'}</span>
+            <span className="status-separator">•</span>
+            <span className="status-cost">$0.00 • 0 tokens</span>
+          </div>
         </div>
 
-        <div className="status-bar">
-          <div className="status-left">
-            <div className="status-indicator">
-              <span className={`status-dot ${session.isProcessing ? 'processing' : 'ready'}`}></span>
-              <span className="status-text">{session.isProcessing ? 'Processing' : 'Ready'}</span>
+        {session.isProcessing && (
+          <div className="processing-bar">
+            <div className="processing-info">
+              <span className="processing-spinner">⏳</span>
+              <span>Processing...</span>
             </div>
-            <div className="status-cost">
-              $0.00 - 0 tokens
-            </div>
-          </div>
-          {session.isProcessing && (
-            <button className="btn-stop-status" onClick={handleStop}>
+            <button className="btn stop" onClick={handleStop}>
               ⏹ Stop
             </button>
-          )}
+          </div>
+        )}
+
+        <textarea
+          ref={inputRef}
+          className="input-field"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Type your message to Claude Code..."
+          disabled={session.isProcessing}
+          rows={1}
+        />
+
+        <div className="button-bar">
+          <div className="button-bar-spacer"></div>
+          <button
+            className="btn-send"
+            onClick={handleSend}
+            disabled={session.isProcessing || !inputText.trim()}
+            title="Send message (Enter)"
+          >
+            Send ↵
+          </button>
         </div>
       </div>
 
