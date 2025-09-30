@@ -1,11 +1,16 @@
 import * as cp from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Session, SessionConfig, ClaudeStreamData } from '../shared/types';
 import * as crypto from 'crypto';
+import { app } from 'electron';
 
 interface ActiveSession {
   session: Session;
   process?: cp.ChildProcess;
   rawOutput: string;
+  permissionRequestsPath?: string;
+  permissionWatcher?: fs.FSWatcher;
 }
 
 export class MultiSessionManager {
@@ -16,6 +21,187 @@ export class MultiSessionManager {
     private onStreamData: (sessionId: string, data: ClaudeStreamData) => void,
     private onPermissionRequest?: (sessionId: string, tool: string, path: string, message: string) => Promise<boolean>
   ) {}
+
+  /**
+   * Initializes permission directory for a session
+   */
+  private async initializePermissionDirectory(sessionId: string): Promise<string> {
+    const userDataPath = app.getPath('userData');
+    const permissionsPath = path.join(userDataPath, 'permission-requests', sessionId);
+
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(permissionsPath)) {
+      fs.mkdirSync(permissionsPath, { recursive: true });
+    }
+
+    return permissionsPath;
+  }
+
+  /**
+   * Sets up file watcher for permission requests
+   */
+  private setupPermissionWatcher(sessionId: string, permissionsPath: string): void {
+    const activeSession = this.sessions.get(sessionId);
+    if (!activeSession) return;
+
+    // Clean up existing watcher if any
+    if (activeSession.permissionWatcher) {
+      activeSession.permissionWatcher.close();
+    }
+
+    // Create default permissions.json in BOTH locations:
+    // 1. In permissions directory for MCP server
+    // 2. In working directory for Claude CLI to read directly
+    const defaultPermissions = {
+      alwaysAllow: {
+        Read: true,
+        Write: true,
+        Edit: true,
+        Glob: true,
+        Grep: true,
+        TodoWrite: true,
+        Bash: ['npm install *', 'npm i *', 'npm run *', 'git add *', 'git commit *', 'git push *'],
+      },
+    };
+
+    // Create in permissions directory (for MCP)
+    const permissionsFile = path.join(permissionsPath, 'permissions.json');
+    if (!fs.existsSync(permissionsFile)) {
+      fs.writeFileSync(permissionsFile, JSON.stringify(defaultPermissions, null, 2));
+      console.log('[PERMISSIONS] Created permissions.json in:', permissionsPath);
+    }
+
+    // ALSO create in working directory (Claude CLI reads from here)
+    const workingDirSession = this.sessions.get(sessionId);
+    if (workingDirSession) {
+      const workingDirPermissions = path.join(workingDirSession.session.workingDirectory, '.claude', 'permissions.json');
+      const claudeDir = path.join(workingDirSession.session.workingDirectory, '.claude');
+
+      if (!fs.existsSync(claudeDir)) {
+        fs.mkdirSync(claudeDir, { recursive: true });
+      }
+
+      fs.writeFileSync(workingDirPermissions, JSON.stringify(defaultPermissions, null, 2));
+      console.log('[PERMISSIONS] Created permissions.json in working dir:', workingDirPermissions);
+    }
+
+    // Watch for .request files
+    const watcher = fs.watch(permissionsPath, async (eventType, filename) => {
+      if (!filename || !filename.endsWith('.request')) return;
+
+      const requestPath = path.join(permissionsPath, filename);
+
+      // Small delay to ensure file is fully written
+      setTimeout(async () => {
+        try {
+          if (!fs.existsSync(requestPath)) return;
+
+          const content = fs.readFileSync(requestPath, 'utf8');
+          const request = JSON.parse(content);
+
+          console.log('[PERMISSIONS] Received request:', request);
+
+          if (this.onPermissionRequest) {
+            // Ask for permission
+            const allowed = await this.onPermissionRequest(
+              sessionId,
+              request.tool || 'unknown',
+              request.input?.command || request.input?.file_path || 'unknown',
+              `${request.tool} permission requested`
+            );
+
+            // Write response file
+            const responseFile = requestPath.replace('.request', '.response');
+            const response = {
+              id: request.id,
+              approved: allowed,
+              timestamp: new Date().toISOString(),
+            };
+
+            fs.writeFileSync(responseFile, JSON.stringify(response));
+            console.log('[PERMISSIONS] Wrote response:', allowed);
+
+            // Save to permissions.json if always allow
+            if (allowed && request.alwaysAllow) {
+              this.saveAlwaysAllowPermission(permissionsPath, request);
+            }
+
+            // Clean up request file
+            fs.unlinkSync(requestPath);
+          }
+        } catch (error) {
+          console.error('[PERMISSIONS] Error handling request:', error);
+        }
+      }, 100);
+    });
+
+    activeSession.permissionWatcher = watcher;
+  }
+
+  /**
+   * Saves always-allow permission to permissions.json
+   */
+  private saveAlwaysAllowPermission(permissionsPath: string, request: any): void {
+    try {
+      const permissionsFile = path.join(permissionsPath, 'permissions.json');
+      let permissions: any = { alwaysAllow: {} };
+
+      if (fs.existsSync(permissionsFile)) {
+        permissions = JSON.parse(fs.readFileSync(permissionsFile, 'utf8'));
+      }
+
+      const toolName = request.tool;
+      if (toolName === 'Bash' && request.input?.command) {
+        // For Bash, store command patterns
+        if (!permissions.alwaysAllow[toolName]) {
+          permissions.alwaysAllow[toolName] = [];
+        }
+        if (Array.isArray(permissions.alwaysAllow[toolName])) {
+          const pattern = this.getCommandPattern(request.input.command);
+          if (!permissions.alwaysAllow[toolName].includes(pattern)) {
+            permissions.alwaysAllow[toolName].push(pattern);
+          }
+        }
+      } else {
+        // For other tools, allow all
+        permissions.alwaysAllow[toolName] = true;
+      }
+
+      fs.writeFileSync(permissionsFile, JSON.stringify(permissions, null, 2));
+      console.log(`[PERMISSIONS] Saved always-allow for ${toolName}`);
+    } catch (error) {
+      console.error('[PERMISSIONS] Error saving always-allow:', error);
+    }
+  }
+
+  /**
+   * Gets command pattern for Bash commands
+   */
+  private getCommandPattern(command: string): string {
+    const parts = command.trim().split(/\s+/);
+    if (parts.length === 0) return command;
+
+    const baseCmd = parts[0];
+    const subCmd = parts.length > 1 ? parts[1] : '';
+
+    // Common patterns
+    const patterns: [string, string, string][] = [
+      ['npm', 'install', 'npm install *'],
+      ['npm', 'i', 'npm i *'],
+      ['npm', 'run', 'npm run *'],
+      ['git', 'add', 'git add *'],
+      ['git', 'commit', 'git commit *'],
+      ['git', 'push', 'git push *'],
+    ];
+
+    for (const [cmd, sub, pattern] of patterns) {
+      if (baseCmd === cmd && (sub === '' || subCmd === sub)) {
+        return pattern;
+      }
+    }
+
+    return command;
+  }
 
   /**
    * Creates a new session
@@ -92,6 +278,11 @@ export class MultiSessionManager {
       activeSession.process.kill('SIGTERM');
     }
 
+    // Close permission watcher
+    if (activeSession.permissionWatcher) {
+      activeSession.permissionWatcher.close();
+    }
+
     this.sessions.delete(sessionId);
 
     // If this was the active session, switch to another
@@ -146,10 +337,17 @@ export class MultiSessionManager {
     session.isProcessing = true;
     session.lastActive = new Date().toISOString();
 
-    // Build Claude args
-    const args = this.buildClaudeArgs(session, config);
+    // Initialize permission directory
+    const permissionsPath = await this.initializePermissionDirectory(sessionId);
+    activeSession.permissionRequestsPath = permissionsPath;
+    this.setupPermissionWatcher(sessionId, permissionsPath);
 
-    // Create Claude process
+    // Build Claude args with permissions path
+    const args = this.buildClaudeArgs(session, config, permissionsPath, sessionId);
+
+    console.log('[CLAUDE ARGS]:', args.join(' '));
+
+    // Create Claude process with permissions directory in env
     const claudeProcess = cp.spawn('claude', args, {
       shell: true,
       cwd: session.workingDirectory,
@@ -158,21 +356,33 @@ export class MultiSessionManager {
         ...process.env,
         FORCE_COLOR: '0',
         NO_COLOR: '1',
+        NODE_NO_READLINE: '1', // Disable readline buffering
+        CLAUDE_PERMISSIONS_PATH: permissionsPath, // Claude CLI reads this!
+        PERMISSIONS_DIR: permissionsPath, // Pass to MCP server
       },
     });
 
     activeSession.process = claudeProcess;
     activeSession.rawOutput = '';
 
-    // Disable buffering on stdout
+    // Disable buffering on stdout and set encoding
     if (claudeProcess.stdout) {
       claudeProcess.stdout.setEncoding('utf8');
+      // Resume stream to ensure data flows
+      claudeProcess.stdout.resume();
+    }
+
+    // Disable buffering on stderr
+    if (claudeProcess.stderr) {
+      claudeProcess.stderr.setEncoding('utf8');
+      claudeProcess.stderr.resume();
     }
 
     // Handle stdout
     if (claudeProcess.stdout) {
       claudeProcess.stdout.on('data', (data) => {
         const chunk = data.toString();
+        console.log('[STDOUT CHUNK]:', chunk);
         activeSession.rawOutput += chunk;
 
         // Process JSON stream line by line
@@ -182,42 +392,38 @@ export class MultiSessionManager {
         for (const line of lines) {
           if (line.trim()) {
             try {
+              console.log('[PARSING JSON]:', line.trim());
               const jsonData = JSON.parse(line.trim());
+              console.log('[PARSED JSON]:', jsonData.type, jsonData.subtype);
               this.processStreamData(sessionId, jsonData);
             } catch (error) {
-              console.error('Failed to parse JSON line:', line, error);
+              console.error('[PARSE ERROR] Failed to parse JSON line:', line, error);
             }
           }
         }
       });
     }
 
-    // Handle stderr
+    // Handle stderr - MCP server logs here
     let errorOutput = '';
     if (claudeProcess.stderr) {
-      claudeProcess.stderr.on('data', async (data) => {
+      claudeProcess.stderr.on('data', (data) => {
         const output = data.toString();
+
+        // Log all stderr output
+        console.error('[STDERR]:', output);
         errorOutput += output;
 
-        // Check for permission request pattern
-        // Pattern: "Claude requested permissions to <action> to <path>, but you haven't granted it yet."
-        const permissionMatch = output.match(/Claude requested permissions? to (\w+)(?: to)? (.+?), but you haven't granted it yet/);
-        if (permissionMatch && this.onPermissionRequest) {
-          const tool = permissionMatch[1];
-          const filePath = permissionMatch[2];
-          const message = `Claude is requesting permission to ${tool} ${filePath}`;
-
-          // Request permission
-          const allowed = await this.onPermissionRequest(sessionId, tool, filePath, message);
-
-          // Note: stdin is closed, so permission handling won't work currently
-          // This needs to be fixed - see TODO below
+        // Forward MCP logs to console for debugging
+        if (output.includes('[MCP]')) {
+          console.log('[MCP LOG]:', output);
         }
       });
     }
 
     // Handle process close
     claudeProcess.on('close', (code) => {
+      console.log('[PROCESS CLOSE] Code:', code, 'Error output:', errorOutput);
       session.isProcessing = false;
       activeSession.process = undefined;
 
@@ -247,11 +453,10 @@ export class MultiSessionManager {
       });
     });
 
-    // Send message to Claude's stdin and close it to force output flush
-    // TODO: This breaks permission handling - need a better solution
+    // Send message to Claude's stdin
     if (claudeProcess.stdin) {
       claudeProcess.stdin.write(message + '\n');
-      claudeProcess.stdin.end(); // Close stdin to flush buffered output
+      claudeProcess.stdin.end(); // Close to flush output (no interactive permissions without MCP)
     }
 
     return true;
@@ -269,6 +474,12 @@ export class MultiSessionManager {
     activeSession.process.kill('SIGKILL');
     activeSession.process = undefined;
     activeSession.session.isProcessing = false;
+
+    // Close permission watcher
+    if (activeSession.permissionWatcher) {
+      activeSession.permissionWatcher.close();
+      activeSession.permissionWatcher = undefined;
+    }
 
     // Notify renderer that process was stopped
     this.onStreamData(sessionId, {
@@ -298,14 +509,75 @@ export class MultiSessionManager {
       });
     }
 
-    // Forward to renderer
+    // Process different message types
+    switch (jsonData.type) {
+      case 'system':
+        this.handleSystemMessage(sessionId, jsonData);
+        break;
+      case 'assistant':
+        this.handleAssistantMessage(sessionId, jsonData);
+        break;
+      case 'user':
+        this.handleUserMessage(sessionId, jsonData);
+        break;
+      case 'result':
+        this.handleResultMessage(sessionId, jsonData);
+        break;
+      default:
+        // Forward unknown types as-is
+        this.onStreamData(sessionId, jsonData);
+    }
+  }
+
+  /**
+   * Handles system messages
+   */
+  private handleSystemMessage(sessionId: string, jsonData: ClaudeStreamData): void {
+    if (jsonData.subtype === 'init') {
+      // Session initialized
+      this.onStreamData(sessionId, jsonData);
+    } else {
+      // Other system messages
+      this.onStreamData(sessionId, jsonData);
+    }
+  }
+
+  /**
+   * Handles assistant messages (content, tool use, thinking)
+   */
+  private handleAssistantMessage(sessionId: string, jsonData: ClaudeStreamData): void {
+    // Just forward the original data - let renderer handle formatting
+    this.onStreamData(sessionId, jsonData);
+  }
+
+  /**
+   * Handles user messages (tool results)
+   */
+  private handleUserMessage(sessionId: string, jsonData: ClaudeStreamData): void {
+    // Just forward the original data - let renderer handle formatting
+    this.onStreamData(sessionId, jsonData);
+  }
+
+  /**
+   * Handles result messages (final response)
+   */
+  private handleResultMessage(sessionId: string, jsonData: ClaudeStreamData): void {
+    const activeSession = this.sessions.get(sessionId);
+    if (!activeSession) return;
+
+    if (jsonData.subtype === 'success') {
+      // Request completed
+      activeSession.session.isProcessing = false;
+    }
+
+    // Forward the original data - let renderer handle formatting
     this.onStreamData(sessionId, jsonData);
   }
 
   /**
    * Builds command arguments for Claude CLI
    */
-  private buildClaudeArgs(session: Session, config?: SessionConfig): string[] {
+  private buildClaudeArgs(session: Session, config?: SessionConfig, permissionsPath?: string, sessionId?: string): string[] {
     const args = ['-p', '--output-format', 'stream-json', '--verbose'];
 
     // Add model if specified
@@ -326,11 +598,35 @@ export class MultiSessionManager {
     // YOLO mode
     if (config?.yoloMode) {
       args.push('--dangerously-skip-permissions');
-    }
+    } else if (permissionsPath) {
+      // Use MCP config for permissions if not in YOLO mode
+      const appDir = path.join(__dirname, '../..');
+      const mcpConfigPath = config?.mcpConfigPath || path.join(appDir, 'mcp-config.json');
 
-    // MCP config
-    if (config?.mcpConfigPath) {
-      args.push('--mcp-config', config.mcpConfigPath);
+      if (fs.existsSync(mcpConfigPath)) {
+        // Read template config
+        const templateConfig = JSON.parse(fs.readFileSync(mcpConfigPath, 'utf8'));
+
+        // Replace variables in the config object
+        const processedConfig = JSON.parse(
+          JSON.stringify(templateConfig)
+            .replace(/\{\{APP_DIR\}\}/g, appDir.replace(/\\/g, '\\\\'))
+            .replace(/\{\{PERMISSIONS_DIR\}\}/g, permissionsPath.replace(/\\/g, '\\\\'))
+        );
+
+        // Write processed config
+        const tempConfigPath = path.join(app.getPath('temp'), `mcp-config-${sessionId || 'default'}.json`);
+        fs.writeFileSync(tempConfigPath, JSON.stringify(processedConfig, null, 2));
+
+        args.push('--mcp-config', tempConfigPath);
+        args.push('--allowedTools', 'mcp__permissions__approval_prompt');
+        args.push('--permission-prompt-tool', 'mcp__permissions__approval_prompt');
+        console.log('[MCP] Using config:', tempConfigPath);
+        console.log('[MCP] Permissions dir:', permissionsPath);
+        console.log('[MCP] Using approval_prompt tool for permissions');
+      } else {
+        console.log('[MCP] Config not found:', mcpConfigPath);
+      }
     }
 
     return args;
@@ -343,6 +639,9 @@ export class MultiSessionManager {
     for (const [_, activeSession] of this.sessions) {
       if (activeSession.process) {
         activeSession.process.kill('SIGTERM');
+      }
+      if (activeSession.permissionWatcher) {
+        activeSession.permissionWatcher.close();
       }
     }
     this.sessions.clear();

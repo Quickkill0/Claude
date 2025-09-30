@@ -63,6 +63,8 @@ async function initializeManagers() {
 
 // Handle permission request
 async function handlePermissionRequest(sessionId: string, tool: string, filePath: string, message: string): Promise<boolean> {
+  console.log('[PERMISSION REQUEST]', { sessionId, tool, filePath, message });
+
   // Check always-allow permissions first
   const settings = await persistenceManager.getSettings();
   const isAllowed = settings.alwaysAllowPermissions.some(rule => {
@@ -71,6 +73,8 @@ async function handlePermissionRequest(sessionId: string, tool: string, filePath
     if (rule.pattern && new RegExp(rule.pattern).test(filePath)) return true;
     return false;
   });
+
+  console.log('[PERMISSION] Always-allow check:', isAllowed);
 
   if (isAllowed) {
     return true;
@@ -88,11 +92,13 @@ async function handlePermissionRequest(sessionId: string, tool: string, filePath
       timestamp: new Date().toISOString(),
     };
 
+    console.log('[PERMISSION] Sending request to renderer:', requestId);
     pendingPermissions.set(requestId, { resolve, request });
 
     if (mainWindow) {
       mainWindow.webContents.send(IPC_CHANNELS.PERMISSION_REQUEST, request);
     } else {
+      console.log('[PERMISSION] No main window, denying');
       resolve(false);
     }
   });
