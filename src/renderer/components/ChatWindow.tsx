@@ -9,7 +9,7 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
-  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadArchivedConversation, loadedArchivedConversation, toggleThinkingMode } = useSessionStore();
+  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadArchivedConversation, loadedArchivedConversation, toggleThinkingMode, togglePlanMode } = useSessionStore();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -93,6 +93,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
 
   const handleToggleThinking = () => {
     toggleThinkingMode(session.id);
+  };
+
+  const handleTogglePlan = () => {
+    togglePlanMode(session.id);
   };
 
   // Auto-resize textarea
@@ -186,6 +190,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
             title={session.thinkingMode ? 'Extended thinking: ON' : 'Extended thinking: OFF'}
           >
             💭
+          </button>
+          <button
+            className={`btn-plan-toggle ${session.planMode ? 'active' : ''}`}
+            onClick={handleTogglePlan}
+            disabled={session.isProcessing}
+            title={session.planMode ? 'Plan mode: ON' : 'Plan mode: OFF'}
+          >
+            📋
           </button>
           <div className="button-bar-spacer"></div>
           <button

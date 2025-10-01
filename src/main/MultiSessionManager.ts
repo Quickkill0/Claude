@@ -792,6 +792,11 @@ export class MultiSessionManager {
       args.push('--extended-thinking');
     }
 
+    // Plan mode
+    if (config?.planMode || session.planMode) {
+      args.push('--permission-mode', 'plan');
+    }
+
     // YOLO mode
     if (config?.yoloMode) {
       args.push('--dangerously-skip-permissions');

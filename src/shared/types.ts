@@ -14,6 +14,7 @@ export interface Session {
   isOpen?: boolean; // Track if session should be loaded on startup
   yoloMode?: boolean;
   thinkingMode?: boolean;
+  planMode?: boolean;
   sessionPermissions?: PermissionRule[];
   totalCost?: number;
   tokenUsage?: {
@@ -86,6 +87,7 @@ export interface SessionConfig {
   mcpConfigPath?: string;
   yoloMode?: boolean;
   thinkingMode?: boolean;
+  planMode?: boolean;
 }
 
 export interface PermissionRule {

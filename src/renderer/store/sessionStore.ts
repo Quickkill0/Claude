@@ -26,6 +26,7 @@ interface SessionStore {
   loadArchivedConversation: (sessionId: string, filename: string) => Promise<void>;
   toggleYoloMode: (sessionId: string) => void;
   toggleThinkingMode: (sessionId: string) => void;
+  togglePlanMode: (sessionId: string) => void;
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => void;
   respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) => Promise<void>;
   removeSessionPermission: (sessionId: string, index: number) => Promise<void>;
@@ -157,6 +158,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const config = {
         ...(session?.yoloMode && { yoloMode: true }),
         ...(session?.thinkingMode && { thinkingMode: true }),
+        ...(session?.planMode && { planMode: true }),
       };
 
       await window.electronAPI.sendMessage(sessionId, message, Object.keys(config).length > 0 ? config : undefined);
@@ -466,6 +468,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     // Save updated session metadata to backend
     await window.electronAPI.updateSession(sessionId, { thinkingMode: newThinkingMode });
+  },
+
+  togglePlanMode: async (sessionId: string) => {
+    const session = get().sessions.find(s => s.id === sessionId);
+    const newPlanMode = !session?.planMode;
+
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId ? { ...s, planMode: newPlanMode } : s
+      ),
+    }));
+
+    // Save updated session metadata to backend
+    await window.electronAPI.updateSession(sessionId, { planMode: newPlanMode });
   },
 
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => {
