@@ -25,6 +25,7 @@ interface SessionStore {
   updateSessionModel: (sessionId: string, model: 'opus' | 'sonnet' | 'sonnet1m' | 'default') => void;
   loadArchivedConversation: (sessionId: string, filename: string) => Promise<void>;
   toggleYoloMode: (sessionId: string) => void;
+  toggleThinkingMode: (sessionId: string) => void;
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => void;
   respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) => Promise<void>;
   removeSessionPermission: (sessionId: string, index: number) => Promise<void>;
@@ -151,11 +152,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ),
       }));
 
-      // Get session to pass yoloMode config
+      // Get session to pass config
       const session = get().sessions.find(s => s.id === sessionId);
-      const config = session?.yoloMode ? { yoloMode: true } : undefined;
+      const config = {
+        ...(session?.yoloMode && { yoloMode: true }),
+        ...(session?.thinkingMode && { thinkingMode: true }),
+      };
 
-      await window.electronAPI.sendMessage(sessionId, message, config);
+      await window.electronAPI.sendMessage(sessionId, message, Object.keys(config).length > 0 ? config : undefined);
     } catch (error) {
       console.error('Failed to send message:', error);
     }
@@ -448,6 +452,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     // Save updated session metadata to backend
     await window.electronAPI.updateSession(sessionId, { yoloMode: newYoloMode });
+  },
+
+  toggleThinkingMode: async (sessionId: string) => {
+    const session = get().sessions.find(s => s.id === sessionId);
+    const newThinkingMode = !session?.thinkingMode;
+
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId ? { ...s, thinkingMode: newThinkingMode } : s
+      ),
+    }));
+
+    // Save updated session metadata to backend
+    await window.electronAPI.updateSession(sessionId, { thinkingMode: newThinkingMode });
   },
 
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => {

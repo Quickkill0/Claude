@@ -111,11 +111,8 @@ const Sidebar: React.FC = () => {
                   className="session-item-content"
                   onClick={() => switchSession(session.id)}
                 >
-                  <div className="session-item-icon">
-                    {session.isProcessing ? '⚡' : '📁'}
-                  </div>
                   <div className="session-item-info">
-                    <div className="session-item-name">{session.name}</div>
+                    <div className={`session-item-name ${session.isProcessing ? 'processing' : ''}`}>{session.name}</div>
                   </div>
                 </div>
               </div>

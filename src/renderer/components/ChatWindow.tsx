@@ -9,10 +9,12 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
-  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadArchivedConversation, loadedArchivedConversation } = useSessionStore();
+  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadArchivedConversation, loadedArchivedConversation, toggleThinkingMode } = useSessionStore();
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   const sessionMessages = messages.get(session.id) || [];
   const inputText = getInputText(session.id);
@@ -23,9 +25,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
   };
 
   const handleSend = () => {
-    if (inputText.trim() && !session.isProcessing) {
-      sendMessage(session.id, inputText.trim());
+    if ((inputText.trim() || selectedFile) && !session.isProcessing) {
+      let messageToSend = inputText.trim();
+
+      // Append file path to message if a file is selected
+      if (selectedFile) {
+        messageToSend = messageToSend
+          ? `${messageToSend}\n\n[Image: ${selectedFile}]`
+          : `[Image: ${selectedFile}]`;
+      }
+
+      sendMessage(session.id, messageToSend);
       setInputText('');
+      setSelectedFile(null);
     }
   };
 
@@ -56,6 +68,31 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
   const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newModel = e.target.value as 'opus' | 'sonnet' | 'sonnet1m' | 'default';
     updateSessionModel(session.id, newModel);
+  };
+
+  const handleFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Get the full path - note: in browser this will only give filename
+      // In Electron, we need to use a different approach to get full path
+      const path = (file as any).path || file.name;
+      setSelectedFile(path);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleToggleThinking = () => {
+    toggleThinkingMode(session.id);
   };
 
   // Auto-resize textarea
@@ -106,6 +143,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           )}
         </div>
 
+        {selectedFile && (
+          <div className="file-attachment-area">
+            <div className="file-chip">
+              <span className="file-icon">🖼️</span>
+              <span className="file-name">{selectedFile.split(/[\\/]/).pop()}</span>
+              <button
+                className="remove-file-btn"
+                onClick={handleRemoveFile}
+                title="Remove file"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         <textarea
           ref={inputRef}
           className="input-field"
@@ -117,12 +170,36 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           rows={1}
         />
 
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+        />
+
         <div className="button-bar">
+          <button
+            className={`btn-thinking-toggle ${session.thinkingMode ? 'active' : ''}`}
+            onClick={handleToggleThinking}
+            disabled={session.isProcessing}
+            title={session.thinkingMode ? 'Extended thinking: ON' : 'Extended thinking: OFF'}
+          >
+            💭
+          </button>
           <div className="button-bar-spacer"></div>
+          <button
+            className="btn-attach"
+            onClick={handleFileSelect}
+            disabled={session.isProcessing}
+            title="Attach image"
+          >
+            📷
+          </button>
           <button
             className="btn-send"
             onClick={handleSend}
-            disabled={session.isProcessing || !inputText.trim()}
+            disabled={session.isProcessing || (!inputText.trim() && !selectedFile)}
             title="Send message (Enter)"
           >
             Send ↵

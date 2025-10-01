@@ -787,6 +787,11 @@ export class MultiSessionManager {
       args.push('--resume', session.claudeSessionId);
     }
 
+    // Extended thinking mode
+    if (config?.thinkingMode || session.thinkingMode) {
+      args.push('--extended-thinking');
+    }
+
     // YOLO mode
     if (config?.yoloMode) {
       args.push('--dangerously-skip-permissions');
