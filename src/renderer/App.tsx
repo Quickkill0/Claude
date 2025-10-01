@@ -36,9 +36,9 @@ const App: React.FC = () => {
           ) : (
             <div className="no-session">
               <div className="no-session-content">
-                <div className="welcome-icon">🚀</div>
-                <h2>Welcome to Claude Desktop</h2>
-                <p>Select a folder to start your first session with Claude</p>
+                <div className="welcome-icon">C</div>
+                <h2>Welcome to Claude</h2>
+                <p>Select a folder to start your first session</p>
                 <div className="welcome-actions">
                   <button
                     className="btn primary large"

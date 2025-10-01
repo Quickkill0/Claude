@@ -37,7 +37,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   activeSessionId: null,
   messages: new Map(),
-  isSidebarOpen: true,
+  isSidebarOpen: localStorage.getItem('sidebarOpen') !== 'false', // Default to true unless explicitly set to false
   inputTexts: new Map(),
   loadedArchivedConversation: new Map(),
 
@@ -320,7 +320,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   toggleSidebar: () => {
-    set((state) => ({ isSidebarOpen: !state.isSidebarOpen }));
+    set((state) => {
+      const newState = !state.isSidebarOpen;
+      localStorage.setItem('sidebarOpen', String(newState));
+      return { isSidebarOpen: newState };
+    });
   },
 
   setInputText: (sessionId: string, text: string) => {

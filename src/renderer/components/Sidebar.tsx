@@ -5,7 +5,7 @@ import SettingsModal from './SettingsModal';
 import SessionSettingsModal from './SessionSettingsModal';
 
 const Sidebar: React.FC = () => {
-  const { sessions, activeSessionId, createSession, switchSession, deleteSession, isSidebarOpen, toggleYoloMode, updateSessionModel, removeSessionPermission } = useSessionStore();
+  const { sessions, activeSessionId, createSession, switchSession, deleteSession, isSidebarOpen, toggleSidebar, toggleYoloMode, updateSessionModel, removeSessionPermission } = useSessionStore();
   const [sessionToDelete, setSessionToDelete] = useState<{ id: string; name: string } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [sessionSettingsId, setSessionSettingsId] = useState<string | null>(null);
@@ -28,7 +28,7 @@ const Sidebar: React.FC = () => {
               onClick={() => switchSession(session.id)}
               title={session.name}
             >
-              {session.isProcessing ? '⚡' : '📁'}
+              {session.name.charAt(0).toUpperCase()}
             </div>
           ))}
         </div>
@@ -46,6 +46,10 @@ const Sidebar: React.FC = () => {
         {showSettings && (
           <SettingsModal onClose={() => setShowSettings(false)} />
         )}
+
+        <div className="sidebar-handle" onClick={toggleSidebar} title="Expand sidebar">
+          <div className="sidebar-handle-bar"></div>
+        </div>
       </div>
     );
   }
@@ -135,7 +139,7 @@ const Sidebar: React.FC = () => {
 
       {sessionToDelete && (
         <ConfirmDialog
-          title="claude-desktop"
+          title="Claude"
           message={`Close session "${sessionToDelete.name}"?`}
           onConfirm={() => {
             deleteSession(sessionToDelete.id);
@@ -157,6 +161,10 @@ const Sidebar: React.FC = () => {
           onUpdateModel={updateSessionModel}
         />
       )}
+
+      <div className="sidebar-handle" onClick={toggleSidebar} title="Collapse sidebar">
+        <div className="sidebar-handle-bar"></div>
+      </div>
     </div>
   );
 };
