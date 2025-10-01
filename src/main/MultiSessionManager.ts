@@ -249,6 +249,7 @@ export class MultiSessionManager {
       lastActive: now,
       isActive: false,
       isProcessing: false,
+      isOpen: true, // Mark as open when created
     };
 
     this.sessions.set(sessionId, {

@@ -11,6 +11,7 @@ export interface Session {
   lastActive: string;
   isActive: boolean;
   isProcessing: boolean;
+  isOpen?: boolean; // Track if session should be loaded on startup
   yoloMode?: boolean;
   sessionPermissions?: PermissionRule[];
   totalCost?: number;

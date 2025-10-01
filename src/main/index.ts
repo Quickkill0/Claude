@@ -56,12 +56,15 @@ async function initializeManagers() {
     }
   );
 
-  // Load persisted sessions
+  // Load persisted sessions and filter to only open sessions
   const { sessions, messagesMap } = await persistenceManager.loadSessions();
-  sessionManager.restoreSessions(sessions, messagesMap);
+  // Only restore sessions that were open when app was closed
+  // For backward compatibility, treat undefined isOpen as true (existing sessions)
+  const openSessions = sessions.filter(s => s.isOpen !== false);
+  sessionManager.restoreSessions(openSessions, messagesMap);
 
-  // Load permissions for all sessions
-  for (const session of sessions) {
+  // Load permissions for all open sessions
+  for (const session of openSessions) {
     await sessionManager.loadSessionPermissions(session.id);
   }
 }
@@ -119,7 +122,16 @@ function setupIPCHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.DELETE_SESSION, async (_, sessionId: string) => {
-    // Only remove from active sessions, keep saved data for future use
+    // Mark session as closed and persist, then remove from active sessions
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      session.isOpen = false;
+      const messages = await persistenceManager.getSessionMessages(sessionId);
+      await persistenceManager.saveSession(session, messages);
+    }
+
+    // Remove from active sessions in memory
     const result = await sessionManager.deleteSession(sessionId);
     return result;
   });
