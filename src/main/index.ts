@@ -119,8 +119,8 @@ function setupIPCHandlers() {
   });
 
   ipcMain.handle(IPC_CHANNELS.DELETE_SESSION, async (_, sessionId: string) => {
+    // Only remove from active sessions, keep saved data for future use
     const result = await sessionManager.deleteSession(sessionId);
-    await persistenceManager.deleteSession(sessionId);
     return result;
   });
 
