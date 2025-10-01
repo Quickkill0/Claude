@@ -171,12 +171,14 @@ declare global {
       createSession: (config?: SessionConfig) => Promise<Session>;
       deleteSession: (sessionId: string) => Promise<boolean>;
       switchSession: (sessionId: string) => Promise<Session | null>;
+      updateSession: (sessionId: string, updates: Partial<Session>) => Promise<Session | null>;
       getSessions: () => Promise<Session[]>;
       getSessionMessages: (sessionId: string) => Promise<Message[]>;
       saveSessionMessages: (sessionId: string, messages: Message[], claudeSessionId?: string) => Promise<void>;
-      getArchivedConversations: (sessionId: string) => Promise<Array<{filename: string, timestamp: string, messageCount: number, firstMessage: string}>>;
+      getArchivedConversations: (sessionId: string) => Promise<Array<{filename: string, timestamp: string, messageCount: number, firstMessage: string, isCurrent?: boolean}>>;
       loadArchivedConversation: (filename: string) => Promise<Message[]>;
       getArchivedClaudeSessionId: (filename: string) => Promise<string | undefined>;
+      saveCurrentConversation: (sessionId: string, messages: Message[], claudeSessionId?: string) => Promise<void>;
       createConversation: (sessionId: string) => Promise<Conversation>;
       getConversations: (sessionId: string) => Promise<Conversation[]>;
       switchConversation: (sessionId: string, conversationId: string) => Promise<Conversation | null>;

@@ -4,6 +4,7 @@ interface HistoryModalProps {
   sessionId: string;
   onClose: () => void;
   onLoadConversation: (filename: string) => void;
+  currentArchiveKey?: string | null;
 }
 
 interface ArchivedConversation {
@@ -11,9 +12,10 @@ interface ArchivedConversation {
   timestamp: string;
   messageCount: number;
   firstMessage: string;
+  isCurrent?: boolean;
 }
 
-const HistoryModal: React.FC<HistoryModalProps> = ({ sessionId, onClose, onLoadConversation }) => {
+const HistoryModal: React.FC<HistoryModalProps> = ({ sessionId, onClose, onLoadConversation, currentArchiveKey }) => {
   const [conversations, setConversations] = useState<ArchivedConversation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -41,7 +43,15 @@ const HistoryModal: React.FC<HistoryModalProps> = ({ sessionId, onClose, onLoadC
 
   const formatDate = (timestamp: string) => {
     try {
-      const date = new Date(timestamp);
+      // Convert timestamp from our storage format (2025-09-30T23-38-18.961Z)
+      // back to ISO format (2025-09-30T23:38:18.961Z) by replacing dashes after T with colons
+      const isoTimestamp = timestamp.replace(/T(\d{2})-(\d{2})-(\d{2})/, 'T$1:$2:$3');
+      const date = new Date(isoTimestamp);
+
+      if (isNaN(date.getTime())) {
+        return timestamp;
+      }
+
       return date.toLocaleString();
     } catch {
       return timestamp;
@@ -62,19 +72,25 @@ const HistoryModal: React.FC<HistoryModalProps> = ({ sessionId, onClose, onLoadC
             <div className="history-empty">No archived conversations found</div>
           ) : (
             <div className="history-list">
-              {conversations.map((conv) => (
-                <div
-                  key={conv.filename}
-                  className="history-item"
-                  onClick={() => handleLoadConversation(conv.filename)}
-                >
-                  <div className="history-item-header">
-                    <span className="history-item-date">{formatDate(conv.timestamp)}</span>
-                    <span className="history-item-count">{conv.messageCount} messages</span>
+              {conversations.map((conv) => {
+                const isActive = currentArchiveKey === conv.filename;
+                return (
+                  <div
+                    key={conv.filename}
+                    className={`history-item ${isActive ? 'active' : ''}`}
+                    onClick={() => handleLoadConversation(conv.filename)}
+                  >
+                    <div className="history-item-header">
+                      <span className="history-item-date">
+                        {formatDate(conv.timestamp)}
+                        {isActive && <span className="active-badge"> • Active</span>}
+                      </span>
+                      <span className="history-item-count">{conv.messageCount} messages</span>
+                    </div>
+                    <div className="history-item-preview">{conv.firstMessage}</div>
                   </div>
-                  <div className="history-item-preview">{conv.firstMessage}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

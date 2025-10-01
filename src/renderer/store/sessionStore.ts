@@ -229,7 +229,29 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         // Save messages if processing is complete
         if (data.sessionUpdate.isProcessing === false) {
           const sessionMessages = get().messages.get(sessionId) || [];
+          const session = get().sessions.find(s => s.id === sessionId);
+          const loadedArchiveKey = get().loadedArchivedConversation.get(sessionId);
+
+          // Save current messages to session
           window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
+
+          // Auto-save to history
+          if (session && sessionMessages.length > 0) {
+            if (loadedArchiveKey && !loadedArchiveKey.endsWith('-current')) {
+              // Update the resumed archived conversation
+              console.log('[Auto-save] Updating resumed archive:', loadedArchiveKey);
+              window.electronAPI.saveSessionMessages(loadedArchiveKey, sessionMessages, session.claudeSessionId);
+            } else {
+              // Save to current conversation
+              console.log('[Auto-save] Saving to current conversation');
+              window.electronAPI.saveCurrentConversation(sessionId, sessionMessages, session.claudeSessionId);
+
+              // Mark that we're now working with current conversation
+              const loadedArchives = new Map(get().loadedArchivedConversation);
+              loadedArchives.set(sessionId, `${sessionId}-current`);
+              set({ loadedArchivedConversation: loadedArchives });
+            }
+          }
         }
       }
     } else if (data.type === 'system' && data.subtype === 'stats') {
@@ -322,17 +344,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     console.log('startNewChat - sessionMessages:', sessionMessages);
     console.log('startNewChat - claudeSessionId:', session?.claudeSessionId);
 
-    // Archive messages if there are any
+    // Archive current conversation if there are any messages
     if (sessionMessages.length > 0 && session) {
       let archiveKey: string;
 
-      if (loadedArchiveKey) {
-        // Update the existing archive that was loaded
+      if (loadedArchiveKey && !loadedArchiveKey.endsWith('-current')) {
+        // Update the existing archive that was loaded (but not current.json)
         archiveKey = loadedArchiveKey;
         console.log('startNewChat - updating existing archive:', archiveKey, 'with claudeSessionId:', session.claudeSessionId);
       } else {
-        // Create new archive with timestamp
-        const timestamp = new Date().toISOString();
+        // Create new archive with timestamp (replace colons with hyphens for Windows compatibility)
+        const timestamp = new Date().toISOString().replace(/:/g, '-');
         const normalizedPath = session.workingDirectory.replace(/\\/g, '/');
         archiveKey = `${normalizedPath}-${timestamp}`;
         console.log('startNewChat - creating new archive:', archiveKey, 'with claudeSessionId:', session.claudeSessionId);
@@ -365,16 +387,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     await window.electronAPI.saveSessionMessages(sessionId, []);
   },
 
-  updateSessionModel: (sessionId: string, model: 'opus' | 'sonnet' | 'sonnet1m' | 'default') => {
+  updateSessionModel: async (sessionId: string, model: 'opus' | 'sonnet' | 'sonnet1m' | 'default') => {
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.id === sessionId ? { ...s, model } : s
       ),
     }));
 
-    // Save updated session
-    const sessionMessages = get().messages.get(sessionId) || [];
-    window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
+    // Save updated session metadata to backend
+    await window.electronAPI.updateSession(sessionId, { model });
   },
 
   loadArchivedConversation: async (sessionId: string, filename: string) => {
@@ -411,16 +432,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  toggleYoloMode: (sessionId: string) => {
+  toggleYoloMode: async (sessionId: string) => {
+    const session = get().sessions.find(s => s.id === sessionId);
+    const newYoloMode = !session?.yoloMode;
+
     set((state) => ({
       sessions: state.sessions.map((s) =>
-        s.id === sessionId ? { ...s, yoloMode: !s.yoloMode } : s
+        s.id === sessionId ? { ...s, yoloMode: newYoloMode } : s
       ),
     }));
 
-    // Save updated session
-    const sessionMessages = get().messages.get(sessionId) || [];
-    window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
+    // Save updated session metadata to backend
+    await window.electronAPI.updateSession(sessionId, { yoloMode: newYoloMode });
   },
 
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => {
@@ -471,10 +494,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
       // Update local state with backend response
       set({ sessions: updatedSessions });
-
-      // Save updated session
-      const sessionMessages = get().messages.get(sessionId) || [];
-      await window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
     } catch (error) {
       console.error('Failed to remove session permission:', error);
     }

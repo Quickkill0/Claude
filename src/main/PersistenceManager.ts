@@ -1,12 +1,8 @@
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
 import { Session, Message, AppSettings } from '../shared/types';
-
-interface PersistedSession {
-  session: Session;
-  messages: Message[];
-}
 
 interface ArchivedConversation {
   messages: Message[];
@@ -14,20 +10,13 @@ interface ArchivedConversation {
   timestamp: string;
 }
 
-interface PersistedData {
-  sessions: PersistedSession[];
-  archivedConversations: { [key: string]: ArchivedConversation | Message[] }; // Support old format (Message[]) and new format (ArchivedConversation)
-}
-
 export class PersistenceManager {
-  private dataDir: string;
-  private sessionsFile: string;
+  private sessionsDir: string;
   private settingsFile: string;
   private settings: AppSettings | null = null;
 
   constructor() {
-    this.dataDir = path.join(app.getPath('userData'), 'sessions');
-    this.sessionsFile = path.join(this.dataDir, 'sessions.json');
+    this.sessionsDir = path.join(app.getPath('userData'), 'sessions');
     this.settingsFile = path.join(app.getPath('userData'), 'settings.json');
   }
 
@@ -36,136 +25,155 @@ export class PersistenceManager {
    */
   async initialize(): Promise<void> {
     try {
-      await fs.mkdir(this.dataDir, { recursive: true });
+      await fs.mkdir(this.sessionsDir, { recursive: true });
     } catch (error) {
       console.error('Failed to create persistence directory:', error);
     }
   }
 
   /**
-   * Saves all sessions and their messages
+   * Gets the folder path for a session based on its name
    */
-  async saveSessions(sessions: Session[], messagesMap: Map<string, Message[]>, archivedMetadata?: Map<string, { claudeSessionId?: string; timestamp: string }>): Promise<void> {
-    try {
-      const persistedSessions: PersistedSession[] = sessions.map((session) => ({
-        session,
-        messages: messagesMap.get(session.id) || [],
-      }));
-
-      // Separate archived conversations from session messages
-      const archivedConversations: { [key: string]: ArchivedConversation } = {};
-      for (const [key, messages] of messagesMap.entries()) {
-        // If key doesn't match any session ID, it's an archived conversation
-        if (!sessions.find(s => s.id === key)) {
-          const metadata = archivedMetadata?.get(key);
-          archivedConversations[key] = {
-            messages,
-            claudeSessionId: metadata?.claudeSessionId,
-            timestamp: metadata?.timestamp || key.split('-').pop() || new Date().toISOString()
-          };
-        }
-      }
-
-      const data: PersistedData = {
-        sessions: persistedSessions,
-        archivedConversations
-      };
-
-      await fs.writeFile(
-        this.sessionsFile,
-        JSON.stringify(data, null, 2),
-        'utf-8'
-      );
-    } catch (error) {
-      console.error('Failed to save sessions:', error);
-    }
+  private getSessionFolderPath(sessionName: string): string {
+    // Sanitize session name for use as folder name
+    const sanitizedName = sessionName.replace(/[<>:"/\\|?*]/g, '_');
+    return path.join(this.sessionsDir, sanitizedName);
   }
 
   /**
-   * Loads all sessions and their messages
+   * Gets the session.json file path for a session
+   */
+  private getSessionFilePath(sessionName: string): string {
+    return path.join(this.getSessionFolderPath(sessionName), 'session.json');
+  }
+
+  /**
+   * Gets the messages.json file path for a session
+   */
+  private getMessagesFilePath(sessionName: string): string {
+    return path.join(this.getSessionFolderPath(sessionName), 'messages.json');
+  }
+
+  /**
+   * Gets the history folder path for a session
+   */
+  private getHistoryFolderPath(sessionName: string): string {
+    return path.join(this.getSessionFolderPath(sessionName), 'history');
+  }
+
+  /**
+   * Loads all sessions from their individual folders
    */
   async loadSessions(): Promise<{ sessions: Session[]; messagesMap: Map<string, Message[]>; archivedMetadata: Map<string, { claudeSessionId?: string; timestamp: string }> }> {
     try {
-      const fileData = await fs.readFile(this.sessionsFile, 'utf-8');
-      const parsed = JSON.parse(fileData);
+      const sessions: Session[] = [];
+      const messagesMap = new Map<string, Message[]>();
+      const archivedMetadata = new Map<string, { claudeSessionId?: string; timestamp: string }>();
 
-      // Check if it's the new format with archivedConversations
-      let sessions: Session[];
-      let messagesMap = new Map<string, Message[]>();
-      let archivedMetadata = new Map<string, { claudeSessionId?: string; timestamp: string }>();
+      // Read all session folders
+      const entries = await fs.readdir(this.sessionsDir, { withFileTypes: true });
 
-      if (Array.isArray(parsed)) {
-        // Old format: array of PersistedSession
-        const persistedSessions: PersistedSession[] = parsed;
-        sessions = persistedSessions.map((ps) => ps.session);
-        for (const ps of persistedSessions) {
-          messagesMap.set(ps.session.id, ps.messages);
-        }
-      } else {
-        // New format: PersistedData with sessions and archivedConversations
-        const data: PersistedData = parsed;
-        sessions = data.sessions.map((ps) => ps.session);
-        for (const ps of data.sessions) {
-          messagesMap.set(ps.session.id, ps.messages);
-        }
-        // Load archived conversations (supporting both old and new formats)
-        for (const [key, value] of Object.entries(data.archivedConversations || {})) {
-          if (Array.isArray(value)) {
-            // Old format: just an array of messages
-            messagesMap.set(key, value);
-            archivedMetadata.set(key, { timestamp: key.split('-').pop() || new Date().toISOString() });
-          } else {
-            // New format: ArchivedConversation with metadata
-            messagesMap.set(key, value.messages);
-            archivedMetadata.set(key, {
-              claudeSessionId: value.claudeSessionId,
-              timestamp: value.timestamp
-            });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+
+        const sessionFolderPath = path.join(this.sessionsDir, entry.name);
+        const sessionFilePath = path.join(sessionFolderPath, 'session.json');
+        const messagesFilePath = path.join(sessionFolderPath, 'messages.json');
+        const historyFolderPath = path.join(sessionFolderPath, 'history');
+
+        // Load session metadata
+        try {
+          const sessionData = await fs.readFile(sessionFilePath, 'utf-8');
+          const session: Session = JSON.parse(sessionData);
+          sessions.push(session);
+
+          // Load current messages
+          try {
+            const messagesData = await fs.readFile(messagesFilePath, 'utf-8');
+            const messages: Message[] = JSON.parse(messagesData);
+            messagesMap.set(session.id, messages);
+          } catch {
+            // No messages file yet, use empty array
+            messagesMap.set(session.id, []);
           }
+
+          // Load archived conversations from history folder
+          try {
+            const historyEntries = await fs.readdir(historyFolderPath);
+
+            for (const historyFile of historyEntries) {
+              if (!historyFile.endsWith('.json')) continue;
+
+              const historyFilePath = path.join(historyFolderPath, historyFile);
+              const archivedData = await fs.readFile(historyFilePath, 'utf-8');
+              const archived: ArchivedConversation = JSON.parse(archivedData);
+
+              // Use the session's working directory + timestamp as the key
+              const timestamp = historyFile.replace('.json', '');
+              const normalizedPath = session.workingDirectory.replace(/\\/g, '/');
+              const archiveKey = `${normalizedPath}-${timestamp}`;
+
+              messagesMap.set(archiveKey, archived.messages);
+              archivedMetadata.set(archiveKey, {
+                claudeSessionId: archived.claudeSessionId,
+                timestamp: archived.timestamp || timestamp
+              });
+            }
+          } catch {
+            // No history folder yet
+          }
+        } catch (error) {
+          console.error(`Failed to load session from ${entry.name}:`, error);
         }
       }
 
       return { sessions, messagesMap, archivedMetadata };
     } catch (error) {
-      // File doesn't exist or is corrupted, return empty state
+      // Directory doesn't exist yet
       return { sessions: [], messagesMap: new Map(), archivedMetadata: new Map() };
     }
   }
 
   /**
-   * Saves a single session
+   * Saves a single session and its messages
    */
   async saveSession(session: Session, messages: Message[]): Promise<void> {
     try {
-      const { sessions, messagesMap, archivedMetadata } = await this.loadSessions();
+      const sessionFolderPath = this.getSessionFolderPath(session.name);
+      const sessionFilePath = this.getSessionFilePath(session.name);
+      const messagesFilePath = this.getMessagesFilePath(session.name);
 
-      // Update or add the session
-      const sessionIndex = sessions.findIndex((s) => s.id === session.id);
-      if (sessionIndex !== -1) {
-        sessions[sessionIndex] = session;
-      } else {
-        sessions.push(session);
-      }
+      // Create session folder if it doesn't exist
+      await fs.mkdir(sessionFolderPath, { recursive: true });
 
-      messagesMap.set(session.id, messages);
+      // Save session metadata
+      await fs.writeFile(sessionFilePath, JSON.stringify(session, null, 2), 'utf-8');
 
-      await this.saveSessions(sessions, messagesMap, archivedMetadata);
+      // Save current messages
+      await fs.writeFile(messagesFilePath, JSON.stringify(messages, null, 2), 'utf-8');
     } catch (error) {
       console.error('Failed to save session:', error);
     }
   }
 
   /**
-   * Deletes a session
+   * Deletes a session and all its data
    */
   async deleteSession(sessionId: string): Promise<void> {
     try {
-      const { sessions, messagesMap, archivedMetadata } = await this.loadSessions();
+      // Find the session to get its name
+      const { sessions } = await this.loadSessions();
+      const session = sessions.find(s => s.id === sessionId);
 
-      const filteredSessions = sessions.filter((s) => s.id !== sessionId);
-      messagesMap.delete(sessionId);
+      if (!session) {
+        console.error('Session not found:', sessionId);
+        return;
+      }
 
-      await this.saveSessions(filteredSessions, messagesMap, archivedMetadata);
+      const sessionFolderPath = this.getSessionFolderPath(session.name);
+
+      // Delete the entire session folder
+      await fs.rm(sessionFolderPath, { recursive: true, force: true });
     } catch (error) {
       console.error('Failed to delete session:', error);
     }
@@ -176,8 +184,22 @@ export class PersistenceManager {
    */
   async getSessionMessages(sessionId: string): Promise<Message[]> {
     try {
-      const { messagesMap } = await this.loadSessions();
-      return messagesMap.get(sessionId) || [];
+      // Find the session to get its name
+      const { sessions } = await this.loadSessions();
+      const session = sessions.find(s => s.id === sessionId);
+
+      if (!session) {
+        return [];
+      }
+
+      const messagesFilePath = this.getMessagesFilePath(session.name);
+
+      try {
+        const messagesData = await fs.readFile(messagesFilePath, 'utf-8');
+        return JSON.parse(messagesData);
+      } catch {
+        return [];
+      }
     } catch (error) {
       console.error('Failed to get session messages:', error);
       return [];
@@ -185,84 +207,116 @@ export class PersistenceManager {
   }
 
   /**
-   * Gets all archived conversations for a session's working directory
+   * Saves the current active conversation to history/current.json
    */
-  async getArchivedConversations(sessionId: string): Promise<Array<{filename: string, timestamp: string, messageCount: number, firstMessage: string}>> {
+  async saveCurrentConversation(sessionId: string, messages: Message[], claudeSessionId?: string): Promise<void> {
     try {
-      const { sessions, messagesMap } = await this.loadSessions();
-      const archived: Array<{filename: string, timestamp: string, messageCount: number, firstMessage: string}> = [];
-
-      // Find the working directory for this session
+      const { sessions } = await this.loadSessions();
       const session = sessions.find(s => s.id === sessionId);
+
       if (!session) {
-        console.log('getArchivedConversations - session not found:', sessionId);
-        return [];
+        console.error('[PersistenceManager] Session not found for saveCurrentConversation:', sessionId);
+        return;
       }
 
-      // Normalize path separators to forward slashes
-      const workingDirectory = session.workingDirectory.replace(/\\/g, '/');
-      console.log('getArchivedConversations - sessionId:', sessionId);
-      console.log('getArchivedConversations - workingDirectory:', workingDirectory);
-      console.log('getArchivedConversations - messagesMap keys:', Array.from(messagesMap.keys()));
+      const historyFolderPath = this.getHistoryFolderPath(session.name);
+      await fs.mkdir(historyFolderPath, { recursive: true });
 
-      // Look for archived conversations with format workingDirectory-timestamp
-      for (const [key, messages] of messagesMap.entries()) {
-        console.log('Checking key:', key, 'starts with:', `${workingDirectory}-`, 'result:', key.startsWith(`${workingDirectory}-`));
-        if (key.startsWith(`${workingDirectory}-`) && messages.length > 0) {
-          const timestamp = key.substring(workingDirectory.length + 1);
-          const firstUserMsg = messages.find(m => m.type === 'user');
-          archived.push({
-            filename: key,
-            timestamp,
-            messageCount: messages.length,
-            firstMessage: firstUserMsg ? firstUserMsg.content.substring(0, 100) : 'Conversation'
-          });
-        }
+      const currentFilePath = path.join(historyFolderPath, 'current.json');
+
+      // Check if current.json already exists to preserve original timestamp
+      let timestamp = new Date().toISOString();
+      try {
+        const existingData = await fs.readFile(currentFilePath, 'utf-8');
+        const existing: ArchivedConversation = JSON.parse(existingData);
+        // Preserve the original timestamp
+        timestamp = existing.timestamp;
+      } catch {
+        // File doesn't exist yet, use new timestamp
       }
 
-      console.log('getArchivedConversations - found archived:', archived);
+      const currentConversation: ArchivedConversation = {
+        messages,
+        claudeSessionId,
+        timestamp
+      };
 
-      // Sort by timestamp descending (newest first)
-      archived.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-      return archived;
+      await fs.writeFile(currentFilePath, JSON.stringify(currentConversation, null, 2), 'utf-8');
+
+      console.log('[PersistenceManager] Current conversation saved to:', currentFilePath);
     } catch (error) {
-      console.error('Failed to get archived conversations:', error);
-      return [];
+      console.error('[PersistenceManager] Failed to save current conversation:', error);
     }
   }
 
   /**
    * Gets all archived conversations for a specific working directory
    */
-  async getArchivedConversationsForWorkingDir(workingDirectory: string): Promise<Array<{filename: string, timestamp: string, messageCount: number, firstMessage: string}>> {
+  async getArchivedConversationsForWorkingDir(workingDirectory: string): Promise<Array<{filename: string, timestamp: string, messageCount: number, firstMessage: string, isCurrent?: boolean}>> {
     try {
-      const { messagesMap } = await this.loadSessions();
-      const archived: Array<{filename: string, timestamp: string, messageCount: number, firstMessage: string}> = [];
+      const { sessions } = await this.loadSessions();
+      const archived: Array<{filename: string, timestamp: string, messageCount: number, firstMessage: string, isCurrent?: boolean}> = [];
 
-      // Normalize path separators to forward slashes
+      // Normalize paths for comparison (both to forward slashes)
       const normalizedWorkingDir = workingDirectory.replace(/\\/g, '/');
-      console.log('getArchivedConversationsForWorkingDir - workingDirectory:', normalizedWorkingDir);
-      console.log('getArchivedConversationsForWorkingDir - messagesMap keys:', Array.from(messagesMap.keys()));
 
-      // Look for archived conversations with format workingDirectory-timestamp
-      for (const [key, messages] of messagesMap.entries()) {
-        console.log('Checking key:', key, 'starts with:', `${normalizedWorkingDir}-`, 'result:', key.startsWith(`${normalizedWorkingDir}-`));
-        if (key.startsWith(`${normalizedWorkingDir}-`) && messages.length > 0) {
-          const timestamp = key.substring(normalizedWorkingDir.length + 1);
-          const firstUserMsg = messages.find(m => m.type === 'user');
-          archived.push({
-            filename: key,
-            timestamp,
-            messageCount: messages.length,
-            firstMessage: firstUserMsg ? firstUserMsg.content.substring(0, 100) : 'Conversation'
-          });
-        }
+      // Find the session with this working directory
+      const session = sessions.find(s => s.workingDirectory.replace(/\\/g, '/') === normalizedWorkingDir);
+
+      if (!session) {
+        console.log('getArchivedConversationsForWorkingDir - no session found for:', workingDirectory);
+        return [];
       }
 
-      console.log('getArchivedConversationsForWorkingDir - found archived:', archived);
+      const historyFolderPath = this.getHistoryFolderPath(session.name);
 
-      // Sort by timestamp descending (newest first)
-      archived.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+      try {
+        const historyEntries = await fs.readdir(historyFolderPath);
+
+        for (const historyFile of historyEntries) {
+          if (!historyFile.endsWith('.json')) continue;
+
+          const historyFilePath = path.join(historyFolderPath, historyFile);
+          const archivedData = await fs.readFile(historyFilePath, 'utf-8');
+          const archivedConv: ArchivedConversation = JSON.parse(archivedData);
+
+          // Check if this is the current conversation
+          const isCurrent = historyFile === 'current.json';
+
+          let archiveKey: string;
+          let timestamp: string;
+
+          if (isCurrent) {
+            // Special handling for current conversation
+            archiveKey = `${session.id}-current`;
+            timestamp = archivedConv.timestamp;
+          } else {
+            // Regular archived conversation
+            timestamp = historyFile.replace('.json', '');
+            const normalizedPath = session.workingDirectory.replace(/\\/g, '/');
+            archiveKey = `${normalizedPath}-${timestamp}`;
+          }
+
+          const firstUserMsg = archivedConv.messages.find(m => m.type === 'user');
+          archived.push({
+            filename: archiveKey,
+            timestamp: archivedConv.timestamp || timestamp,
+            messageCount: archivedConv.messages.length,
+            firstMessage: firstUserMsg ? firstUserMsg.content.substring(0, 100) : 'Conversation',
+            isCurrent
+          });
+        }
+
+        // Sort by isCurrent first (current conversation at top), then by timestamp descending
+        archived.sort((a, b) => {
+          if (a.isCurrent && !b.isCurrent) return -1;
+          if (!a.isCurrent && b.isCurrent) return 1;
+          return b.timestamp.localeCompare(a.timestamp);
+        });
+      } catch {
+        // No history folder yet
+      }
+
       return archived;
     } catch (error) {
       console.error('Failed to get archived conversations:', error);
@@ -271,12 +325,53 @@ export class PersistenceManager {
   }
 
   /**
-   * Loads an archived conversation
+   * Loads an archived conversation by its archive key
    */
-  async loadArchivedConversation(filename: string): Promise<Message[]> {
+  async loadArchivedConversation(archiveKey: string): Promise<Message[]> {
     try {
-      const { messagesMap } = await this.loadSessions();
-      return messagesMap.get(filename) || [];
+      // Check if this is the current conversation
+      if (archiveKey.endsWith('-current')) {
+        const sessionId = archiveKey.replace('-current', '');
+        const { sessions } = await this.loadSessions();
+        const session = sessions.find(s => s.id === sessionId);
+
+        if (!session) {
+          console.error('Session not found for current conversation:', sessionId);
+          return [];
+        }
+
+        const currentFilePath = path.join(this.getHistoryFolderPath(session.name), 'current.json');
+        const archivedData = await fs.readFile(currentFilePath, 'utf-8');
+        const archived: ArchivedConversation = JSON.parse(archivedData);
+
+        return archived.messages;
+      }
+
+      // Parse the archive key to extract working directory and timestamp
+      // Format: workingDirectory-YYYY-MM-DDTHH-MM-SS.sssZ
+      const timestampMatch = archiveKey.match(/-(\d{4}-\d{2}-\d{2}T[\d\-\.]+Z)$/);
+      if (!timestampMatch) {
+        return [];
+      }
+
+      const timestamp = timestampMatch[1];
+      const workingDirectory = archiveKey.substring(0, archiveKey.length - timestamp.length - 1);
+
+      // Find the session with this working directory
+      const { sessions } = await this.loadSessions();
+      const session = sessions.find(s => s.workingDirectory.replace(/\\/g, '/') === workingDirectory);
+
+      if (!session) {
+        console.error('Session not found for working directory:', workingDirectory);
+        return [];
+      }
+
+      const historyFilePath = path.join(this.getHistoryFolderPath(session.name), `${timestamp}.json`);
+
+      const archivedData = await fs.readFile(historyFilePath, 'utf-8');
+      const archived: ArchivedConversation = JSON.parse(archivedData);
+
+      return archived.messages;
     } catch (error) {
       console.error('Failed to load archived conversation:', error);
       return [];
@@ -284,32 +379,109 @@ export class PersistenceManager {
   }
 
   /**
-   * Saves archived messages with claudeSessionId
+   * Saves archived messages with claudeSessionId to the session's history folder
    */
-  async saveArchivedMessages(key: string, messages: Message[], claudeSessionId?: string): Promise<void> {
+  async saveArchivedMessages(archiveKey: string, messages: Message[], claudeSessionId?: string): Promise<void> {
     try {
-      const { sessions, messagesMap, archivedMetadata } = await this.loadSessions();
-      messagesMap.set(key, messages);
+      console.log('[PersistenceManager] saveArchivedMessages - archiveKey:', archiveKey);
+      console.log('[PersistenceManager] saveArchivedMessages - message count:', messages.length);
+      console.log('[PersistenceManager] saveArchivedMessages - claudeSessionId:', claudeSessionId);
 
-      // Store metadata including claudeSessionId
-      archivedMetadata.set(key, {
+      // Parse the archive key to extract working directory and timestamp
+      // Format: workingDirectory-YYYY-MM-DDTHH-MM-SS.sssZ
+      // Look for the pattern -YYYY-MM-DD to find where the timestamp starts
+      const timestampMatch = archiveKey.match(/-(\d{4}-\d{2}-\d{2}T[\d\-\.]+Z)$/);
+      if (!timestampMatch) {
+        console.error('[PersistenceManager] Invalid archive key format:', archiveKey);
+        return;
+      }
+
+      const timestamp = timestampMatch[1];
+      const workingDirectory = archiveKey.substring(0, archiveKey.length - timestamp.length - 1);
+
+      console.log('[PersistenceManager] workingDirectory:', workingDirectory);
+      console.log('[PersistenceManager] timestamp:', timestamp);
+
+      // Find the session with this working directory
+      const { sessions } = await this.loadSessions();
+      const session = sessions.find(s => s.workingDirectory.replace(/\\/g, '/') === workingDirectory);
+
+      if (!session) {
+        console.error('[PersistenceManager] Session not found for working directory:', workingDirectory);
+        console.error('[PersistenceManager] Available sessions:', sessions.map(s => ({ id: s.id, name: s.name, workingDirectory: s.workingDirectory })));
+        return;
+      }
+
+      console.log('[PersistenceManager] Found session:', session.name);
+
+      const historyFolderPath = this.getHistoryFolderPath(session.name);
+      console.log('[PersistenceManager] historyFolderPath:', historyFolderPath);
+
+      // Create history folder if it doesn't exist
+      await fs.mkdir(historyFolderPath, { recursive: true });
+
+      const archivedConversation: ArchivedConversation = {
+        messages,
         claudeSessionId,
-        timestamp: key.split('-').pop() || new Date().toISOString()
-      });
+        timestamp
+      };
 
-      await this.saveSessions(sessions, messagesMap, archivedMetadata);
+      const historyFilePath = path.join(historyFolderPath, `${timestamp}.json`);
+      console.log('[PersistenceManager] Writing to:', historyFilePath);
+
+      await fs.writeFile(historyFilePath, JSON.stringify(archivedConversation, null, 2), 'utf-8');
+      console.log('[PersistenceManager] Archive saved successfully!');
     } catch (error) {
-      console.error('Failed to save archived messages:', error);
+      console.error('[PersistenceManager] Failed to save archived messages:', error);
     }
   }
 
   /**
    * Gets the claudeSessionId for an archived conversation
    */
-  async getArchivedClaudeSessionId(filename: string): Promise<string | undefined> {
+  async getArchivedClaudeSessionId(archiveKey: string): Promise<string | undefined> {
     try {
-      const { archivedMetadata } = await this.loadSessions();
-      return archivedMetadata.get(filename)?.claudeSessionId;
+      // Check if this is the current conversation
+      if (archiveKey.endsWith('-current')) {
+        const sessionId = archiveKey.replace('-current', '');
+        const { sessions } = await this.loadSessions();
+        const session = sessions.find(s => s.id === sessionId);
+
+        if (!session) {
+          return undefined;
+        }
+
+        const currentFilePath = path.join(this.getHistoryFolderPath(session.name), 'current.json');
+        const archivedData = await fs.readFile(currentFilePath, 'utf-8');
+        const archived: ArchivedConversation = JSON.parse(archivedData);
+
+        return archived.claudeSessionId;
+      }
+
+      // Parse the archive key to extract working directory and timestamp
+      // Format: workingDirectory-YYYY-MM-DDTHH-MM-SS.sssZ
+      const timestampMatch = archiveKey.match(/-(\d{4}-\d{2}-\d{2}T[\d\-\.]+Z)$/);
+      if (!timestampMatch) {
+        return undefined;
+      }
+
+      const timestamp = timestampMatch[1];
+      const workingDirectory = archiveKey.substring(0, archiveKey.length - timestamp.length - 1);
+
+      // Find the session with this working directory
+      const { sessions } = await this.loadSessions();
+      const session = sessions.find(s => s.workingDirectory.replace(/\\/g, '/') === workingDirectory);
+
+      if (!session) {
+        return undefined;
+      }
+
+      const historyFilePath = path.join(this.getHistoryFolderPath(session.name), `${timestamp}.json`);
+
+      const archivedData = await fs.readFile(historyFilePath, 'utf-8');
+      const archived: ArchivedConversation = JSON.parse(archivedData);
+
+      return archived.claudeSessionId;
     } catch (error) {
       console.error('Failed to get archived claudeSessionId:', error);
       return undefined;

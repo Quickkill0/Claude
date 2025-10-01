@@ -150,14 +150,35 @@ function setupIPCHandlers() {
       console.log('SAVE_SESSION_MESSAGES - saving as archived');
       await persistenceManager.saveArchivedMessages(sessionId, messages, claudeSessionId);
     } else {
-      // Normal session save
+      // Normal session save - get latest session state from memory
       console.log('SAVE_SESSION_MESSAGES - saving as session');
       const sessions = sessionManager.getAllSessions();
       const session = sessions.find(s => s.id === sessionId);
       if (session) {
+        // Update claudeSessionId if provided
+        if (claudeSessionId) {
+          session.claudeSessionId = claudeSessionId;
+        }
         await persistenceManager.saveSession(session, messages);
       }
     }
+  });
+
+  // Add UPDATE_SESSION handler to sync session metadata changes from frontend
+  ipcMain.handle(IPC_CHANNELS.UPDATE_SESSION, async (_, { sessionId, updates }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      // Apply updates to session
+      Object.assign(session, updates);
+
+      // Save the updated session
+      const messages = await persistenceManager.getSessionMessages(sessionId);
+      await persistenceManager.saveSession(session, messages);
+
+      return session;
+    }
+    return null;
   });
 
   ipcMain.handle('session:get-archived-conversations', async (_, sessionId: string) => {
@@ -181,6 +202,10 @@ function setupIPCHandlers() {
 
   ipcMain.handle('session:get-archived-claude-session-id', async (_, filename: string) => {
     return await persistenceManager.getArchivedClaudeSessionId(filename);
+  });
+
+  ipcMain.handle('session:save-current-conversation', async (_, { sessionId, messages, claudeSessionId }) => {
+    await persistenceManager.saveCurrentConversation(sessionId, messages, claudeSessionId);
   });
 
   // Claude communication
@@ -233,6 +258,14 @@ function setupIPCHandlers() {
         pending.request.path
       );
       console.log('[PERMISSION] Saved always-allow to permissions.json');
+
+      // Save the updated session with the new permission
+      const sessions = sessionManager.getAllSessions();
+      const session = sessions.find(s => s.id === pending.request.sessionId);
+      if (session) {
+        const messages = await persistenceManager.getSessionMessages(pending.request.sessionId);
+        await persistenceManager.saveSession(session, messages);
+      }
     }
 
     pending.resolve(allowed);
@@ -243,8 +276,17 @@ function setupIPCHandlers() {
 
   ipcMain.handle('session:remove-permission', async (_, { sessionId, index }) => {
     await sessionManager.removePermissionForSession(sessionId, index);
+
+    // Save the updated session
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      const messages = await persistenceManager.getSessionMessages(sessionId);
+      await persistenceManager.saveSession(session, messages);
+    }
+
     // Return updated sessions
-    return sessionManager.getAllSessions();
+    return sessions;
   });
 
   // Window controls

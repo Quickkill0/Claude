@@ -9,12 +9,14 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
-  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadArchivedConversation } = useSessionStore();
+  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadArchivedConversation, loadedArchivedConversation } = useSessionStore();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
 
   const sessionMessages = messages.get(session.id) || [];
   const inputText = getInputText(session.id);
+  const currentArchiveKey = loadedArchivedConversation.get(session.id);
 
   const setInputText = (text: string) => {
     setStoreInputText(session.id, text);
@@ -43,6 +45,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
   };
 
   const handleShowHistory = () => {
+    setHistoryKey(prev => prev + 1); // Force remount to refresh data
     setShowHistory(true);
   };
 
@@ -129,9 +132,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
 
       {showHistory && (
         <HistoryModal
+          key={historyKey}
           sessionId={session.id}
           onClose={() => setShowHistory(false)}
           onLoadConversation={handleLoadConversation}
+          currentArchiveKey={currentArchiveKey}
         />
       )}
     </div>
