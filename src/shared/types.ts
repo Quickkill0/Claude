@@ -129,6 +129,27 @@ export interface ConversationData {
   endTime: string;
 }
 
+export interface SlashCommand {
+  name: string;
+  description?: string;
+  argumentHint?: string;
+  allowedTools?: string;
+  model?: string;
+  disableModelInvocation?: boolean;
+  content: string;
+  source: 'project' | 'personal' | 'builtin';
+}
+
+export interface Agent {
+  name: string;
+  description: string;
+  tools?: string;
+  model?: 'sonnet' | 'opus' | 'haiku' | 'inherit';
+  systemPrompt: string;
+  source: 'project' | 'personal';
+  filePath: string;
+}
+
 // IPC Channel names
 export const IPC_CHANNELS = {
   // Session management
@@ -167,6 +188,15 @@ export const IPC_CHANNELS = {
 
   // Dialog
   SELECT_FOLDER: 'dialog:select-folder',
+
+  // Slash Commands
+  GET_SLASH_COMMANDS: 'slash-commands:get',
+
+  // Agents
+  GET_AGENTS: 'agents:get',
+  CREATE_AGENT: 'agents:create',
+  UPDATE_AGENT: 'agents:update',
+  DELETE_AGENT: 'agents:delete',
 } as const;
 
 // Window API type for TypeScript
@@ -201,6 +231,11 @@ declare global {
       onPermissionRequest: (callback: (request: PermissionRequest) => void) => void;
       respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) => Promise<Session[]>;
       removeSessionPermission: (sessionId: string, index: number) => Promise<Session[]>;
+      getSlashCommands: (sessionId: string) => Promise<SlashCommand[]>;
+      getAgents: (sessionId: string) => Promise<Agent[]>;
+      createAgent: (sessionId: string, agent: Omit<Agent, 'filePath'>, scope: 'project' | 'personal') => Promise<string>;
+      updateAgent: (agent: Agent) => Promise<void>;
+      deleteAgent: (filePath: string) => Promise<void>;
     };
   }
 }

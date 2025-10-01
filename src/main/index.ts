@@ -3,6 +3,8 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { MultiSessionManager } from './MultiSessionManager';
 import { PersistenceManager } from './PersistenceManager';
+import { SlashCommandParser } from './SlashCommandParser';
+import { AgentParser } from './AgentParser';
 import { IPC_CHANNELS, PermissionRequest } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
@@ -318,6 +320,50 @@ function setupIPCHandlers() {
 
   ipcMain.on(IPC_CHANNELS.CLOSE_WINDOW, () => {
     if (mainWindow) {mainWindow.close();}
+  });
+
+  // Slash Commands
+  ipcMain.handle(IPC_CHANNELS.GET_SLASH_COMMANDS, async (_, sessionId: string) => {
+    // Get session from memory to retrieve working directory
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      console.log('Session not found:', sessionId);
+      return [];
+    }
+
+    // Parse and return available slash commands (including built-in)
+    return await SlashCommandParser.getAvailableCommands(session.workingDirectory, true);
+  });
+
+  // Agents
+  ipcMain.handle(IPC_CHANNELS.GET_AGENTS, async (_, sessionId: string) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      console.log('Session not found:', sessionId);
+      return [];
+    }
+
+    return await AgentParser.getAvailableAgents(session.workingDirectory);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.CREATE_AGENT, async (_, { sessionId, agent, scope }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    return await AgentParser.createAgent(session.workingDirectory, agent, scope);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.UPDATE_AGENT, async (_, agent) => {
+    return await AgentParser.updateAgent(agent);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.DELETE_AGENT, async (_, filePath: string) => {
+    return await AgentParser.deleteAgent(filePath);
   });
 }
 

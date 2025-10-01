@@ -23,6 +23,11 @@ const IPC_CHANNELS = {
   MAXIMIZE_WINDOW: 'window:maximize',
   CLOSE_WINDOW: 'window:close',
   SELECT_FOLDER: 'dialog:select-folder',
+  GET_SLASH_COMMANDS: 'slash-commands:get',
+  GET_AGENTS: 'agents:get',
+  CREATE_AGENT: 'agents:create',
+  UPDATE_AGENT: 'agents:update',
+  DELETE_AGENT: 'agents:delete',
 } as const;
 
 // Expose protected methods that allow the renderer process to use
@@ -73,4 +78,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Dialog
   selectFolder: () => ipcRenderer.invoke(IPC_CHANNELS.SELECT_FOLDER),
+
+  // Slash Commands
+  getSlashCommands: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_SLASH_COMMANDS, sessionId),
+
+  // Agents
+  getAgents: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_AGENTS, sessionId),
+  createAgent: (sessionId: string, agent: any, scope: 'project' | 'personal') =>
+    ipcRenderer.invoke(IPC_CHANNELS.CREATE_AGENT, { sessionId, agent, scope }),
+  updateAgent: (agent: any) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_AGENT, agent),
+  deleteAgent: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_AGENT, filePath),
 });

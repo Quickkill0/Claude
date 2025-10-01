@@ -3,12 +3,14 @@ import { useSessionStore } from '../store/sessionStore';
 import ConfirmDialog from './ConfirmDialog';
 import SettingsModal from './SettingsModal';
 import SessionSettingsModal from './SessionSettingsModal';
+import AgentManagementModal from './AgentManagementModal';
 
 const Sidebar: React.FC = () => {
   const { sessions, activeSessionId, createSession, switchSession, deleteSession, isSidebarOpen, toggleSidebar, toggleYoloMode, updateSessionModel, removeSessionPermission } = useSessionStore();
   const [sessionToDelete, setSessionToDelete] = useState<{ id: string; name: string } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [sessionSettingsId, setSessionSettingsId] = useState<string | null>(null);
+  const [showAgents, setShowAgents] = useState(false);
 
   // Render collapsed sidebar when closed
   if (!isSidebarOpen) {
@@ -45,6 +47,13 @@ const Sidebar: React.FC = () => {
 
         {showSettings && (
           <SettingsModal onClose={() => setShowSettings(false)} />
+        )}
+
+        {showAgents && activeSessionId && (
+          <AgentManagementModal
+            sessionId={activeSessionId}
+            onClose={() => setShowAgents(false)}
+          />
         )}
 
         <div className="sidebar-handle" onClick={toggleSidebar} title="Expand sidebar">
@@ -125,13 +134,22 @@ const Sidebar: React.FC = () => {
         <div className="sidebar-stats">
           <span>{sessions.length} {sessions.length === 1 ? 'session' : 'sessions'}</span>
         </div>
-        <button
-          className="btn-icon settings"
-          onClick={() => setShowSettings(true)}
-          title="Settings"
-        >
-          ⚙️
-        </button>
+        <div className="sidebar-footer-actions">
+          <button
+            className="btn-icon agents"
+            onClick={() => setShowAgents(true)}
+            title="Agents"
+          >
+            🤖
+          </button>
+          <button
+            className="btn-icon settings"
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+          >
+            ⚙️
+          </button>
+        </div>
       </div>
 
       {sessionToDelete && (
@@ -156,6 +174,13 @@ const Sidebar: React.FC = () => {
           onClose={() => setSessionSettingsId(null)}
           onRemovePermission={removeSessionPermission}
           onUpdateModel={updateSessionModel}
+        />
+      )}
+
+      {showAgents && activeSessionId && (
+        <AgentManagementModal
+          sessionId={activeSessionId}
+          onClose={() => setShowAgents(false)}
         />
       )}
 

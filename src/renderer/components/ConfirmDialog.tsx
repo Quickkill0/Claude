@@ -18,8 +18,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onCancel,
 }) => {
   return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal-content confirm-dialog" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal-content confirm-dialog">
         <div className="modal-header">
           <h2>{title}</h2>
           <button className="modal-close" onClick={onCancel}>×</button>

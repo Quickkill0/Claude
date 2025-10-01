@@ -6,8 +6,8 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="settings-modal">
         <div className="settings-header">
           <h2>Settings</h2>
           <button className="btn-icon close" onClick={onClose}>
