@@ -1554,6 +1554,11 @@ body {
   color: var(--text-primary);
 }
 
+.active-badge {
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
 .history-item-count {
   font-size: 11px;
   color: var(--text-secondary);
