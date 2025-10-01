@@ -10,8 +10,44 @@ const Sidebar: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [sessionSettingsId, setSessionSettingsId] = useState<string | null>(null);
 
+  // Render collapsed sidebar when closed
   if (!isSidebarOpen) {
-    return null;
+    return (
+      <div className="sidebar-collapsed">
+        <div className="sidebar-collapsed-header">
+          <button className="btn-icon-collapsed" onClick={createSession} title="New Session">
+            +
+          </button>
+        </div>
+
+        <div className="sidebar-collapsed-content">
+          {sessions.map((session) => (
+            <div
+              key={session.id}
+              className={`session-icon ${session.id === activeSessionId ? 'active' : ''} ${session.isProcessing ? 'processing' : ''}`}
+              onClick={() => switchSession(session.id)}
+              title={session.name}
+            >
+              {session.isProcessing ? '⚡' : '📁'}
+            </div>
+          ))}
+        </div>
+
+        <div className="sidebar-collapsed-footer">
+          <button
+            className="btn-icon-collapsed settings"
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+          >
+            ⚙️
+          </button>
+        </div>
+
+        {showSettings && (
+          <SettingsModal onClose={() => setShowSettings(false)} />
+        )}
+      </div>
+    );
   }
 
   return (
@@ -27,9 +63,6 @@ const Sidebar: React.FC = () => {
         {sessions.length === 0 ? (
           <div className="sidebar-empty">
             <p>No sessions yet</p>
-            <button className="btn primary small" onClick={createSession}>
-              Create First Session
-            </button>
           </div>
         ) : (
           <div className="session-list">

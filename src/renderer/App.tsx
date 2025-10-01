@@ -46,14 +46,6 @@ const App: React.FC = () => {
                   >
                     📁 Select Folder & Create Session
                   </button>
-                  {!isSidebarOpen && (
-                    <button
-                      className="btn outlined large"
-                      onClick={toggleSidebar}
-                    >
-                      📋 Show Sessions Panel
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
