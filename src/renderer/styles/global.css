@@ -1162,20 +1162,20 @@ body {
 }
 
 .status-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   display: inline-block;
 }
 
 .status-dot.ready {
   background: var(--accent-green);
-  box-shadow: 0 0 4px var(--accent-green);
+  box-shadow: 0 0 6px var(--accent-green);
 }
 
 .status-dot.processing {
   background: #ff9800;
-  box-shadow: 0 0 4px #ff9800;
+  box-shadow: 0 0 6px #ff9800;
   animation: statusDotPulse 1.5s ease-in-out infinite;
 }
 
