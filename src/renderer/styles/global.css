@@ -3438,6 +3438,275 @@ body {
   gap: 8px;
 }
 
+/* BashOutput Tool Display */
+.bash-output-tool-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bash-output-tool-content .tool-params {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bash-output-tool-content .tool-param {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+/* KillShell Tool Display */
+.kill-shell-tool-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kill-shell-tool-content .tool-param {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+/* WebSearch Tool Display */
+.web-search-tool-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.web-search-tool-content .search-query {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(0, 122, 204, 0.08);
+  border-left: 3px solid var(--accent-blue);
+  border-radius: 6px;
+}
+
+.web-search-tool-content .search-icon {
+  font-size: 18px;
+}
+
+.web-search-tool-content .query-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.web-search-tool-content .search-domains {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.web-search-tool-content .domain-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.web-search-tool-content .domain-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.web-search-tool-content .domain-tag {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+/* WebFetch Tool Display */
+.web-fetch-tool-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.web-fetch-tool-content .fetch-url {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(0, 122, 204, 0.08);
+  border-left: 3px solid var(--accent-blue);
+  border-radius: 6px;
+}
+
+.web-fetch-tool-content .fetch-icon {
+  font-size: 18px;
+}
+
+.web-fetch-tool-content .url-link {
+  font-size: 13px;
+  color: var(--accent-blue);
+  text-decoration: none;
+  font-family: 'Consolas', 'Monaco', monospace;
+  word-break: break-all;
+  flex: 1;
+}
+
+.web-fetch-tool-content .url-link:hover {
+  text-decoration: underline;
+}
+
+.web-fetch-tool-content .fetch-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.web-fetch-tool-content .prompt-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+/* NotebookEdit Tool Display */
+.notebook-edit-tool-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notebook-edit-tool-content .notebook-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notebook-edit-tool-content .notebook-details {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.notebook-edit-tool-content .detail-badge {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: rgba(0, 122, 204, 0.15);
+  border-radius: 4px;
+  color: var(--accent-blue);
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.notebook-edit-tool-content .detail-badge.mode {
+  background: rgba(78, 201, 176, 0.15);
+  color: var(--accent-green);
+}
+
+/* SlashCommand Tool Display */
+.slash-command-tool-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slash-command-tool-content .command-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(244, 135, 113, 0.08);
+  border-left: 3px solid var(--accent-orange);
+  border-radius: 6px;
+}
+
+.slash-command-tool-content .command-icon {
+  font-size: 18px;
+}
+
+.slash-command-tool-content .command-code {
+  font-size: 13px;
+  color: var(--accent-orange);
+  font-family: 'Consolas', 'Monaco', monospace;
+  flex: 1;
+}
+
+/* Task Tool Display */
+.task-tool-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-tool-content .task-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(78, 201, 176, 0.08);
+  border-left: 3px solid var(--accent-green);
+  border-radius: 6px;
+}
+
+.task-tool-content .task-icon {
+  font-size: 18px;
+}
+
+.task-tool-content .task-description {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.task-tool-content .task-agent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.task-tool-content .task-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.task-tool-content .prompt-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
 .glob-params {
   display: flex;
   flex-direction: column;
@@ -3802,7 +4071,7 @@ button:focus-visible {
   gap: 4px;
 }
 
-.btn-icon {
+.agent-card-actions .btn-icon {
   background: transparent;
   border: none;
   padding: 4px 8px;
@@ -3810,10 +4079,12 @@ button:focus-visible {
   border-radius: 4px;
   font-size: 14px;
   transition: background-color 0.2s ease;
+  box-shadow: none;
 }
 
-.btn-icon:hover {
+.agent-card-actions .btn-icon:hover {
   background: var(--bg-secondary);
+  transform: none;
 }
 
 .agent-description {

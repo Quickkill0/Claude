@@ -911,9 +911,9 @@ export class MultiSessionManager {
         fs.writeFileSync(tempConfigPath, JSON.stringify(processedConfig, null, 2));
 
         args.push('--mcp-config', tempConfigPath);
-        // Block all built-in tools so they go through MCP permission system
-        args.push('--disallowedTools', 'Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'Task', 'ExitPlanMode');
-        // Only allow MCP-provided wrapper tools and essential tools
+        // Block built-in tools that need permission checking - route through MCP
+        args.push('--disallowedTools', 'Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'NotebookEdit', 'WebFetch');
+        // Allow MCP permission-wrapped tools + let built-ins handle safe tools
         args.push('--allowedTools',
           'mcp__permissions__Read',
           'mcp__permissions__Write',
@@ -921,9 +921,8 @@ export class MultiSessionManager {
           'mcp__permissions__Bash',
           'mcp__permissions__Glob',
           'mcp__permissions__Grep',
-          'mcp__permissions__ExitPlanMode',  // Plan mode exit requires permission
-          'TodoWrite',     // Allow todo management (no permission needed)
-          'SlashCommand'   // Allow slash commands (no permission needed)
+          'mcp__permissions__NotebookEdit',
+          'mcp__permissions__WebFetch'
         );
         console.log('[MCP] Using config:', tempConfigPath);
         console.log('[MCP] Permissions dir:', permissionsPath);

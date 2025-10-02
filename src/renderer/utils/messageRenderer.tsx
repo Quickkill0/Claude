@@ -375,6 +375,233 @@ export class MessageRenderer {
   }
 
   /**
+   * Render BashOutput tool
+   */
+  static renderBashOutput(
+    content: string,
+    messageId: string,
+    config: RenderConfig
+  ): JSX.Element {
+    try {
+      const parsed = JSON.parse(content);
+      const { bash_id, filter } = parsed;
+
+      return (
+        <div className="bash-output-tool-content">
+          <div className="tool-params">
+            <div className="tool-param">
+              <span className="param-label">Shell ID:</span>
+              <code className="param-value">{bash_id}</code>
+            </div>
+            {filter && (
+              <div className="tool-param">
+                <span className="param-label">Filter:</span>
+                <code className="param-value">{filter}</code>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    } catch (e) {
+      return <pre className="tool-input-content">{content}</pre>;
+    }
+  }
+
+  /**
+   * Render KillShell tool
+   */
+  static renderKillShell(
+    content: string,
+    messageId: string,
+    config: RenderConfig
+  ): JSX.Element {
+    try {
+      const parsed = JSON.parse(content);
+      const { shell_id } = parsed;
+
+      return (
+        <div className="kill-shell-tool-content">
+          <div className="tool-param">
+            <span className="param-label">Terminating Shell:</span>
+            <code className="param-value">{shell_id}</code>
+          </div>
+        </div>
+      );
+    } catch (e) {
+      return <pre className="tool-input-content">{content}</pre>;
+    }
+  }
+
+  /**
+   * Render WebSearch tool
+   */
+  static renderWebSearch(
+    content: string,
+    messageId: string,
+    config: RenderConfig
+  ): JSX.Element {
+    try {
+      const parsed = JSON.parse(content);
+      const { query, allowed_domains, blocked_domains } = parsed;
+
+      return (
+        <div className="web-search-tool-content">
+          <div className="search-query">
+            <span className="search-icon">🔍</span>
+            <span className="query-text">{query}</span>
+          </div>
+          {allowed_domains && allowed_domains.length > 0 && (
+            <div className="search-domains allowed">
+              <span className="domain-label">Allowed domains:</span>
+              <div className="domain-list">
+                {allowed_domains.map((domain: string, idx: number) => (
+                  <span key={idx} className="domain-tag">{domain}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {blocked_domains && blocked_domains.length > 0 && (
+            <div className="search-domains blocked">
+              <span className="domain-label">Blocked domains:</span>
+              <div className="domain-list">
+                {blocked_domains.map((domain: string, idx: number) => (
+                  <span key={idx} className="domain-tag">{domain}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    } catch (e) {
+      return <pre className="tool-input-content">{content}</pre>;
+    }
+  }
+
+  /**
+   * Render WebFetch tool
+   */
+  static renderWebFetch(
+    content: string,
+    messageId: string,
+    config: RenderConfig
+  ): JSX.Element {
+    try {
+      const parsed = JSON.parse(content);
+      const { url, prompt } = parsed;
+
+      return (
+        <div className="web-fetch-tool-content">
+          <div className="fetch-url">
+            <span className="fetch-icon">🌐</span>
+            <a href={url} target="_blank" rel="noopener noreferrer" className="url-link">
+              {url}
+            </a>
+          </div>
+          {prompt && (
+            <div className="fetch-prompt">
+              <span className="param-label">Processing with:</span>
+              <div className="prompt-text">{prompt}</div>
+            </div>
+          )}
+        </div>
+      );
+    } catch (e) {
+      return <pre className="tool-input-content">{content}</pre>;
+    }
+  }
+
+  /**
+   * Render NotebookEdit tool
+   */
+  static renderNotebookEdit(
+    content: string,
+    messageId: string,
+    config: RenderConfig
+  ): JSX.Element {
+    try {
+      const parsed = JSON.parse(content);
+      const { notebook_path, cell_id, cell_type, edit_mode } = parsed;
+
+      return (
+        <div className="notebook-edit-tool-content">
+          <div className="notebook-info">
+            {this.renderFilePathButton(notebook_path, undefined, 'medium', config.onOpenFile)}
+            <div className="notebook-details">
+              {cell_id && <span className="detail-badge">Cell: {cell_id}</span>}
+              {cell_type && <span className="detail-badge">{cell_type}</span>}
+              {edit_mode && <span className="detail-badge mode">{edit_mode}</span>}
+            </div>
+          </div>
+        </div>
+      );
+    } catch (e) {
+      return <pre className="tool-input-content">{content}</pre>;
+    }
+  }
+
+  /**
+   * Render SlashCommand tool
+   */
+  static renderSlashCommand(
+    content: string,
+    messageId: string,
+    config: RenderConfig
+  ): JSX.Element {
+    try {
+      const parsed = JSON.parse(content);
+      const { command } = parsed;
+
+      return (
+        <div className="slash-command-tool-content">
+          <div className="command-display">
+            <span className="command-icon">⚡</span>
+            <code className="command-code">{command}</code>
+          </div>
+        </div>
+      );
+    } catch (e) {
+      return <pre className="tool-input-content">{content}</pre>;
+    }
+  }
+
+  /**
+   * Render Task tool (agent invocation)
+   */
+  static renderTask(
+    content: string,
+    messageId: string,
+    config: RenderConfig
+  ): JSX.Element {
+    try {
+      const parsed = JSON.parse(content);
+      const { description, prompt, subagent_type } = parsed;
+
+      return (
+        <div className="task-tool-content">
+          <div className="task-header">
+            <span className="task-icon">🤖</span>
+            <span className="task-description">{description || 'Running agent task'}</span>
+          </div>
+          {subagent_type && (
+            <div className="task-agent">
+              <span className="param-label">Agent:</span>
+              <code className="param-value">{subagent_type}</code>
+            </div>
+          )}
+          {prompt && (
+            <div className="task-prompt">
+              <span className="param-label">Prompt:</span>
+              <div className="prompt-text">{prompt}</div>
+            </div>
+          )}
+        </div>
+      );
+    } catch (e) {
+      return <pre className="tool-input-content">{content}</pre>;
+    }
+  }
+
+  /**
    * Render tool input based on tool type
    */
   static renderToolInput(
@@ -398,6 +625,20 @@ export class MessageRenderer {
         return this.renderGrepTool(content, messageId, config);
       case 'Glob':
         return this.renderGlobTool(content, messageId, config);
+      case 'NotebookEdit':
+        return this.renderNotebookEdit(content, messageId, config);
+      case 'WebFetch':
+        return this.renderWebFetch(content, messageId, config);
+      case 'WebSearch':
+        return this.renderWebSearch(content, messageId, config);
+      case 'BashOutput':
+        return this.renderBashOutput(content, messageId, config);
+      case 'KillShell':
+        return this.renderKillShell(content, messageId, config);
+      case 'SlashCommand':
+        return this.renderSlashCommand(content, messageId, config);
+      case 'Task':
+        return this.renderTask(content, messageId, config);
       case 'ExitPlanMode':
         return this.renderExitPlanMode(content, messageId, config);
       default:

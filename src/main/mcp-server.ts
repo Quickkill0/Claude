@@ -162,14 +162,30 @@ async function handleRequest(request: MCPRequest): Promise<void> {
             },
           },
           {
-            name: 'ExitPlanMode',
-            description: 'Exit plan mode and present plan to user',
+            name: 'NotebookEdit',
+            description: 'Edit Jupyter notebook cells with permission checking',
             inputSchema: {
               type: 'object',
               properties: {
-                plan: { type: 'string', description: 'The plan to present to the user' },
+                notebook_path: { type: 'string' },
+                cell_id: { type: 'string' },
+                cell_type: { type: 'string', enum: ['code', 'markdown'] },
+                new_source: { type: 'string' },
+                edit_mode: { type: 'string', enum: ['replace', 'insert', 'delete'] },
               },
-              required: ['plan'],
+              required: ['notebook_path', 'new_source'],
+            },
+          },
+          {
+            name: 'WebFetch',
+            description: 'Fetch content from a URL with permission checking',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                url: { type: 'string', description: 'URL to fetch' },
+                prompt: { type: 'string', description: 'Prompt for processing' },
+              },
+              required: ['url', 'prompt'],
             },
           },
         ],
@@ -226,8 +242,11 @@ async function handleToolCall(request: MCPRequest): Promise<void> {
       case 'Grep':
         result = await executeGrep(args);
         break;
-      case 'ExitPlanMode':
-        result = await executeExitPlanMode(args);
+      case 'NotebookEdit':
+        result = await executeNotebookEdit(args);
+        break;
+      case 'WebFetch':
+        result = await executeWebFetch(args);
         break;
       default:
         sendError(request.id, -32601, `Unknown tool: ${name}`);
@@ -513,12 +532,110 @@ async function executeGrep(args: any): Promise<string> {
   });
 }
 
-async function executeExitPlanMode(args: any): Promise<string> {
-  const { plan } = args;
+async function executeWebFetch(args: any): Promise<string> {
+  const { url, prompt } = args;
 
-  // ExitPlanMode doesn't actually execute anything, it just signals to exit plan mode
-  // The plan is passed through and will be displayed in the UI
-  return `Plan approved:\n\n${plan}`;
+  try {
+    // Use Node.js built-in fetch (available in Node 18+)
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Claude-MCP-Server/1.0',
+      },
+      redirect: 'follow',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    let content: string;
+
+    if (contentType.includes('application/json')) {
+      const json = await response.json();
+      content = JSON.stringify(json, null, 2);
+    } else {
+      content = await response.text();
+    }
+
+    // Return the fetched content
+    // Note: The prompt parameter is meant for AI processing, but we can't do that here
+    // Just return the raw content
+    return `Fetched from ${url}:\n\n${content}`;
+  } catch (error: any) {
+    throw new Error(`Failed to fetch ${url}: ${error.message}`);
+  }
+}
+
+async function executeNotebookEdit(args: any): Promise<string> {
+  const { notebook_path, cell_id, cell_type, new_source, edit_mode } = args;
+
+  // Read the notebook file
+  const notebookContent = fs.readFileSync(notebook_path, 'utf8');
+  const notebook = JSON.parse(notebookContent);
+
+  if (!notebook.cells || !Array.isArray(notebook.cells)) {
+    throw new Error('Invalid notebook format');
+  }
+
+  if (edit_mode === 'insert') {
+    // Insert new cell
+    const newCell = {
+      cell_type: cell_type || 'code',
+      metadata: {},
+      source: new_source.split('\n'),
+      outputs: cell_type === 'code' ? [] : undefined,
+      execution_count: cell_type === 'code' ? null : undefined,
+    };
+
+    if (cell_id) {
+      // Find cell and insert after it
+      const index = notebook.cells.findIndex((c: any) => c.id === cell_id);
+      if (index !== -1) {
+        notebook.cells.splice(index + 1, 0, newCell);
+      } else {
+        notebook.cells.push(newCell);
+      }
+    } else {
+      notebook.cells.push(newCell);
+    }
+  } else if (edit_mode === 'delete') {
+    // Delete cell
+    if (cell_id) {
+      const index = notebook.cells.findIndex((c: any) => c.id === cell_id);
+      if (index !== -1) {
+        notebook.cells.splice(index, 1);
+      }
+    }
+  } else {
+    // Replace cell content (default)
+    if (cell_id) {
+      const cell = notebook.cells.find((c: any) => c.id === cell_id);
+      if (cell) {
+        cell.source = new_source.split('\n');
+        if (cell_type) {
+          cell.cell_type = cell_type;
+        }
+      }
+    } else {
+      // No cell_id specified, replace first cell or add new one
+      if (notebook.cells.length > 0) {
+        notebook.cells[0].source = new_source.split('\n');
+      } else {
+        notebook.cells.push({
+          cell_type: cell_type || 'code',
+          metadata: {},
+          source: new_source.split('\n'),
+          outputs: [],
+          execution_count: null,
+        });
+      }
+    }
+  }
+
+  // Write back to file
+  fs.writeFileSync(notebook_path, JSON.stringify(notebook, null, 2), 'utf8');
+  return `Notebook edited successfully: ${notebook_path}`;
 }
 
 function sendResponse(id: string | number, result: any): void {
