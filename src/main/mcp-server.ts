@@ -406,21 +406,12 @@ async function executeBash(args: any): Promise<string> {
   const { command, timeout = 120000 } = args;
   const cp = await import('child_process');
 
-  // Determine shell based on platform
-  const isWindows = process.platform === 'win32';
-  const shell = isWindows ? 'powershell.exe' : '/bin/bash';
-
   return new Promise((resolve, reject) => {
-    // On Windows, wrap command in PowerShell to get better Unix-like behavior
-    const execCommand = isWindows
-      ? `powershell.exe -NoProfile -Command "${command.replace(/"/g, '`"')}"`
-      : command;
-
-    const proc = cp.exec(execCommand, {
+    // exec() uses shell by default, which properly handles npm and other commands
+    cp.exec(command, {
       timeout,
       maxBuffer: 10 * 1024 * 1024,
-      shell: isWindows ? undefined : shell
-    }, (error, stdout, stderr) => {
+    }, (error: any, stdout: any, stderr: any) => {
       if (error) {
         // Include both stderr and error message for better debugging
         const errorMsg = stderr ? `${stderr}\n${error.message}` : error.message;
