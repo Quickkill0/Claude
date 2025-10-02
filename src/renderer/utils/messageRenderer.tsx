@@ -113,11 +113,29 @@ export class MessageRenderer {
         </div>
         <div className="diff-view">
           <div className="diff-section removed">
-            <div className="diff-header">Removed</div>
+            <div className="diff-header">
+              <span>Removed</span>
+              <button
+                className="copy-code-button"
+                onClick={() => config.onCopyCode?.(old_string, `edit-old-${messageId}`)}
+                title="Copy removed code"
+              >
+                {config.copiedCode === `edit-old-${messageId}` ? '✓' : '📋'}
+              </button>
+            </div>
             <pre className="diff-content">{oldLines.join('\n')}</pre>
           </div>
           <div className="diff-section added">
-            <div className="diff-header">Added</div>
+            <div className="diff-header">
+              <span>Added</span>
+              <button
+                className="copy-code-button"
+                onClick={() => config.onCopyCode?.(new_string, `edit-new-${messageId}`)}
+                title="Copy added code"
+              >
+                {config.copiedCode === `edit-new-${messageId}` ? '✓' : '📋'}
+              </button>
+            </div>
             <pre className="diff-content">{newLines.join('\n')}</pre>
           </div>
         </div>
@@ -144,19 +162,39 @@ export class MessageRenderer {
     const isExpanded = config.expandedContent?.has(`write-${messageId}`) ?? false;
     const displayContent = isExpanded ? fileContent : truncated;
 
+    // Extract file name and directory
+    const fileName = file_path.split(/[/\\]/).pop() || file_path;
+    const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'text';
+
     return (
       <div className="write-tool-content">
-        <div className="write-file-path">
-          {this.renderFilePathButton(file_path, undefined, 'medium', config.onOpenFile)}
-          <span className="write-lines">{totalLines} lines</span>
+        <div
+          className="write-file-header"
+          onClick={() => config.onOpenFile?.(file_path)}
+        >
+          <div className="file-icon">📄</div>
+          <div className="file-info">
+            <div className="file-name-display">{fileName}</div>
+            <div className="file-path-full">{file_path}</div>
+          </div>
         </div>
         <div className="write-preview">
+          <div className="write-preview-header">
+            <span className="preview-label">Preview</span>
+            <button
+              className="copy-code-button"
+              onClick={() => config.onCopyCode?.(fileContent, `write-${messageId}`)}
+              title="Copy code"
+            >
+              {config.copiedCode === `write-${messageId}` ? '✓ Copied' : '📋 Copy'}
+            </button>
+          </div>
           <SyntaxHighlighter
             style={vscDarkPlus}
-            language="text"
+            language={fileExtension}
             showLineNumbers
             PreTag="div"
-            customStyle={{ margin: 0, borderRadius: '4px', fontSize: '12px' }}
+            customStyle={{ margin: 0, borderRadius: '0 0 4px 4px', fontSize: '12px' }}
           >
             {displayContent}
           </SyntaxHighlighter>
@@ -203,6 +241,112 @@ export class MessageRenderer {
   }
 
   /**
+   * Render Bash tool content
+   */
+  static renderBashTool(
+    content: string,
+    messageId: string,
+    config: RenderConfig
+  ): JSX.Element {
+    try {
+      const parsed = JSON.parse(content);
+      const { command, description } = parsed;
+
+      return (
+        <div className="bash-tool-content">
+          {description && (
+            <div className="tool-description">{description}</div>
+          )}
+          <div className="command-block">
+            <div className="command-label">Command:</div>
+            <code className="command-text">{command}</code>
+          </div>
+        </div>
+      );
+    } catch (e) {
+      return <pre className="tool-input-content">{content}</pre>;
+    }
+  }
+
+  /**
+   * Render Grep tool content
+   */
+  static renderGrepTool(
+    content: string,
+    messageId: string,
+    config: RenderConfig
+  ): JSX.Element {
+    try {
+      const parsed = JSON.parse(content);
+      const { pattern, path, glob, output_mode } = parsed;
+
+      return (
+        <div className="grep-tool-content">
+          <div className="grep-params">
+            <div className="grep-param">
+              <span className="param-label">Pattern:</span>
+              <code className="param-value">{pattern}</code>
+            </div>
+            {path && (
+              <div className="grep-param">
+                <span className="param-label">Path:</span>
+                <code className="param-value">{path}</code>
+              </div>
+            )}
+            {glob && (
+              <div className="grep-param">
+                <span className="param-label">Glob:</span>
+                <code className="param-value">{glob}</code>
+              </div>
+            )}
+            {output_mode && (
+              <div className="grep-param">
+                <span className="param-label">Mode:</span>
+                <code className="param-value">{output_mode}</code>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    } catch (e) {
+      return <pre className="tool-input-content">{content}</pre>;
+    }
+  }
+
+  /**
+   * Render Glob tool content
+   */
+  static renderGlobTool(
+    content: string,
+    messageId: string,
+    config: RenderConfig
+  ): JSX.Element {
+    try {
+      const parsed = JSON.parse(content);
+      const { pattern, path } = parsed;
+
+      return (
+        <div className="glob-tool-content">
+          <div className="glob-params">
+            <div className="glob-param">
+              <span className="param-label">Pattern:</span>
+              <code className="param-value">{pattern}</code>
+            </div>
+            {path && (
+              <div className="glob-param">
+                <span className="param-label">Path:</span>
+                <code className="param-value">{path}</code>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    } catch (e) {
+      return <pre className="tool-input-content">{content}</pre>;
+    }
+  }
+
+  /**
    * Render tool input based on tool type
    */
   static renderToolInput(
@@ -220,6 +364,12 @@ export class MessageRenderer {
         return this.renderWriteTool(content, messageId, config);
       case 'Read':
         return this.renderReadTool(content, messageId, config);
+      case 'Bash':
+        return this.renderBashTool(content, messageId, config);
+      case 'Grep':
+        return this.renderGrepTool(content, messageId, config);
+      case 'Glob':
+        return this.renderGlobTool(content, messageId, config);
       default:
         // Check if content contains file_path and render it
         try {

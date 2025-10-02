@@ -740,21 +740,22 @@ body {
   opacity: 0.8;
 }
 
-/* Glassmorphic Message Styles */
+/* Enhanced Glassmorphic Message Styles */
 .message {
   position: relative;
-  padding: 12px;
+  padding: 12px 16px;
   border-radius: 12px;
   margin-bottom: 16px;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  animation: messageSlideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation: messageSlideIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
   overflow: visible;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
-/* Shimmer overlay on hover */
+/* Enhanced shimmer overlay on hover */
 .message::after {
   content: '';
   position: absolute;
@@ -762,11 +763,11 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity 0.3s ease;
   pointer-events: none;
-  border-radius: 12px;
+  border-radius: inherit;
   z-index: 1;
 }
 
@@ -775,44 +776,85 @@ body {
 }
 
 @keyframes messageSlideIn {
-  from {
+  0% {
     opacity: 0;
-    transform: translateX(-20px);
-    filter: blur(5px);
+    transform: translateX(-20px) translateY(10px);
+    filter: blur(4px);
   }
-  to {
+  100% {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0) translateY(0);
     filter: blur(0);
   }
 }
 
-/* Message Header */
+/* Enhanced Message Header */
 .message-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   position: relative;
+  z-index: 2;
+  transition: all 0.3s ease;
+}
+
+.message-header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.message:hover .message-header::after {
+  opacity: 1;
 }
 
 .message-icon {
   width: 16px;
   height: 16px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  border-radius: 4px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
-  backdrop-filter: blur(8px);
-  padding: 2px;
+  font-size: 9px;
+  color: white;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-left: 2px;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.message-icon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%);
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.message:hover .message-icon::before {
+  opacity: 1;
 }
 
 .message:hover .message-icon {
-  transform: scale(1.1) rotate(5deg);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.1));
+  transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
 .message-label {
@@ -825,19 +867,22 @@ body {
 }
 
 .copy-btn {
-  opacity: 0;
-  margin-left: auto;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  border: 1px solid transparent;
   color: var(--text-secondary);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 10px;
   cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  opacity: 0;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   position: relative;
   overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .copy-btn::before {
@@ -847,7 +892,7 @@ body {
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   transition: left 0.5s ease;
 }
 
@@ -856,14 +901,21 @@ body {
 }
 
 .message:hover .copy-btn {
-  opacity: 1;
+  opacity: 0.8;
+  transform: scale(1);
 }
 
 .copy-btn:hover {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.15));
-  color: white;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.copy-btn:active {
+  transform: scale(0.95);
+  transition: transform 0.1s ease;
 }
 
 .collapse-icon {
@@ -883,177 +935,170 @@ body {
   overflow-wrap: break-word;
 }
 
-/* Message Type Styles with Left Accent Bars */
+/* Enhanced Message Type Styles with Left Accent Bars */
 
 /* User Message - Purple */
 .message-user {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(102, 57, 184, 0.1));
-}
-
-.message-user::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, #8B5CF6, #6639B8);
-  border-radius: 12px 0 0 12px;
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  background: linear-gradient(135deg,
+    rgba(139, 92, 246, 0.08) 0%,
+    rgba(139, 92, 246, 0.04) 50%,
+    transparent 100%);
+  color: var(--text-primary);
+  font-family: var(--vscode-editor-font-family, 'Consolas', 'Monaco', monospace);
+  position: relative;
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.12);
 }
 
 .message-user:hover {
+  border-color: rgba(139, 92, 246, 0.4);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.25);
+  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.2);
 }
 
 /* Claude Message - Green */
 .message-claude {
-  background: linear-gradient(135deg, rgba(46, 204, 113, 0.15), rgba(39, 174, 96, 0.1));
-}
-
-.message-claude::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, #2ecc71, #27ae60);
-  border-radius: 12px 0 0 12px;
+  border: 1px solid rgba(46, 204, 113, 0.2);
+  background: linear-gradient(135deg,
+    rgba(46, 204, 113, 0.08) 0%,
+    rgba(46, 204, 113, 0.04) 50%,
+    transparent 100%);
+  color: var(--text-primary);
+  position: relative;
+  box-shadow: 0 4px 20px rgba(46, 204, 113, 0.12);
 }
 
 .message-claude:hover {
+  border-color: rgba(46, 204, 113, 0.35);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(46, 204, 113, 0.25);
+  box-shadow: 0 8px 30px rgba(46, 204, 113, 0.2);
 }
 
 /* Error Message - Red */
 .message-error {
-  background: linear-gradient(135deg, rgba(231, 76, 60, 0.15), rgba(192, 57, 43, 0.1));
-}
-
-.message-error::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, #e74c3c, #c0392b);
-  border-radius: 12px 0 0 12px;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  background: linear-gradient(135deg,
+    rgba(231, 76, 60, 0.1) 0%,
+    rgba(231, 76, 60, 0.05) 50%,
+    transparent 100%);
+  color: var(--text-primary);
+  position: relative;
+  box-shadow: 0 4px 20px rgba(231, 76, 60, 0.15);
 }
 
 .message-error:hover {
+  border-color: rgba(231, 76, 60, 0.45);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(231, 76, 60, 0.25);
+  box-shadow: 0 8px 30px rgba(231, 76, 60, 0.25);
 }
 
 /* Tool Message - Blue */
 .message-tool {
-  background: linear-gradient(135deg, rgba(124, 139, 237, 0.15), rgba(93, 111, 225, 0.1));
-}
-
-.message-tool::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, #7c8bed, #5d6fe1);
-  border-radius: 12px 0 0 12px;
+  border: 1px solid rgba(124, 139, 237, 0.2);
+  background: linear-gradient(135deg,
+    rgba(124, 139, 237, 0.08) 0%,
+    rgba(124, 139, 237, 0.04) 50%,
+    transparent 100%);
+  color: var(--text-primary);
+  position: relative;
+  padding: 10px 14px;
+  box-shadow: 0 3px 15px rgba(124, 139, 237, 0.12);
 }
 
 .message-tool:hover {
+  border-color: rgba(124, 139, 237, 0.35);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(124, 139, 237, 0.25);
+  box-shadow: 0 6px 25px rgba(124, 139, 237, 0.2);
 }
 
 /* Tool Result Message - Teal */
 .message-tool-result {
-  background: linear-gradient(135deg, rgba(28, 192, 140, 0.15), rgba(22, 169, 116, 0.1));
-}
-
-.message-tool-result::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, #1cc08c, #16a974);
-  border-radius: 12px 0 0 12px;
+  border: 1px solid rgba(28, 192, 140, 0.25);
+  background: linear-gradient(135deg,
+    rgba(28, 192, 140, 0.08) 0%,
+    rgba(28, 192, 140, 0.04) 50%,
+    transparent 100%);
+  color: var(--text-primary);
+  font-family: var(--vscode-editor-font-family, 'Consolas', 'Monaco', monospace);
+  white-space: pre-wrap;
+  position: relative;
+  padding: 10px 14px;
+  box-shadow: 0 3px 15px rgba(28, 192, 140, 0.12);
 }
 
 .message-tool-result:hover {
+  border-color: rgba(28, 192, 140, 0.4);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(28, 192, 140, 0.25);
+  box-shadow: 0 6px 25px rgba(28, 192, 140, 0.2);
 }
 
 .message-tool-result.error {
-  background: linear-gradient(135deg, rgba(231, 76, 60, 0.15), rgba(192, 57, 43, 0.1));
-}
-
-.message-tool-result.error::before {
-  background: linear-gradient(180deg, #e74c3c, #c0392b);
+  background: linear-gradient(135deg,
+    rgba(231, 76, 60, 0.1) 0%,
+    rgba(231, 76, 60, 0.05) 50%,
+    transparent 100%);
+  border-color: rgba(231, 76, 60, 0.3);
 }
 
 /* Thinking Message - Magenta */
 .message-thinking {
-  background: linear-gradient(135deg, rgba(186, 85, 211, 0.15), rgba(153, 50, 204, 0.1));
-}
-
-.message-thinking::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, #ba55d3, #9932cc);
-  border-radius: 12px 0 0 12px;
+  border: 1px solid rgba(186, 85, 211, 0.25);
+  background: linear-gradient(135deg,
+    rgba(186, 85, 211, 0.08) 0%,
+    rgba(186, 85, 211, 0.04) 50%,
+    transparent 100%);
+  color: var(--text-primary);
+  font-family: var(--vscode-editor-font-family, 'Consolas', 'Monaco', monospace);
+  font-style: italic;
+  opacity: 0.95;
+  position: relative;
+  box-shadow: 0 3px 15px rgba(186, 85, 211, 0.12);
 }
 
 .message-thinking:hover {
+  border-color: rgba(186, 85, 211, 0.4);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(186, 85, 211, 0.25);
+  box-shadow: 0 6px 25px rgba(186, 85, 211, 0.2);
+  opacity: 1;
 }
 
 /* System Message - Gray */
 .message-system {
-  background: linear-gradient(135deg, rgba(127, 140, 141, 0.15), rgba(127, 140, 141, 0.1));
-}
-
-.message-system::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: #7f8c8d;
-  border-radius: 12px 0 0 12px;
+  background: linear-gradient(135deg,
+    rgba(127, 140, 141, 0.08) 0%,
+    rgba(127, 140, 141, 0.04) 50%,
+    transparent 100%);
+  border: 1px solid rgba(127, 140, 141, 0.2);
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 12px;
+  padding: 8px 12px;
+  position: relative;
+  box-shadow: 0 2px 12px rgba(127, 140, 141, 0.1);
 }
 
 .message-system:hover {
+  border-color: rgba(127, 140, 141, 0.3);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(127, 140, 141, 0.25);
+  box-shadow: 0 4px 20px rgba(127, 140, 141, 0.15);
 }
 
 /* Permission Message - Orange */
 .message-permission {
-  background: linear-gradient(135deg, rgba(230, 126, 34, 0.15), rgba(211, 84, 0, 0.1));
+  border: 1px solid rgba(230, 126, 34, 0.25);
+  background: linear-gradient(135deg,
+    rgba(230, 126, 34, 0.08) 0%,
+    rgba(230, 126, 34, 0.04) 50%,
+    transparent 100%);
+  color: var(--text-primary);
+  position: relative;
+  box-shadow: 0 3px 15px rgba(230, 126, 34, 0.12);
 }
 
-.message-permission::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: linear-gradient(180deg, #e67e22, #d35400);
-  border-radius: 12px 0 0 12px;
+.message-permission:hover {
+  border-color: rgba(230, 126, 34, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 25px rgba(230, 126, 34, 0.2);
 }
 
 /* Message Text */
@@ -2992,6 +3037,9 @@ body {
 }
 
 .diff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   background: var(--bg-tertiary);
   padding: 8px 12px;
   font-size: 11px;
@@ -2999,6 +3047,14 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   border-bottom: 1px solid var(--border-color);
+}
+
+.diff-header .copy-code-button {
+  opacity: 0.8;
+}
+
+.diff-section:hover .diff-header .copy-code-button {
+  opacity: 1;
 }
 
 .diff-section.removed .diff-header {
@@ -3037,6 +3093,55 @@ body {
   gap: 12px;
 }
 
+.write-file-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-hover) 100%);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.write-file-header:hover {
+  background: linear-gradient(135deg, var(--bg-hover) 0%, #4e4e52 100%);
+  border-color: var(--accent-blue);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 122, 204, 0.2);
+}
+
+.write-file-header .file-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.write-file-header .file-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.write-file-header .file-name-display {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+.write-file-header .file-path-full {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .write-file-path {
   display: flex;
   align-items: center;
@@ -3060,8 +3165,35 @@ body {
   border: 1px solid var(--border-color);
 }
 
+.write-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg,
+    rgba(45, 45, 48, 0.95) 0%,
+    rgba(62, 62, 66, 0.9) 100%);
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.write-preview-header .preview-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.write-preview-header .copy-code-button {
+  opacity: 0.8;
+}
+
+.write-preview:hover .write-preview-header .copy-code-button {
+  opacity: 1;
+}
+
 .expand-button {
-  align-self: flex-start;
+  align-self: center;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   color: var(--accent-blue);
@@ -3115,6 +3247,139 @@ body {
   gap: 8px;
 }
 
+/* Bash Tool Display */
+.bash-tool-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tool-description {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 6px 10px;
+  background: rgba(0, 122, 204, 0.08);
+  border-left: 3px solid var(--accent-blue);
+  border-radius: 4px;
+}
+
+.command-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.command-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.command-text {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--accent-green);
+  background: rgba(78, 201, 176, 0.1);
+  padding: 8px 10px;
+  border-radius: 4px;
+  border-left: 3px solid var(--accent-green);
+  display: block;
+  overflow-x: auto;
+}
+
+/* Grep Tool Display */
+.grep-tool-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.grep-params {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.grep-param {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.grep-param .param-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 60px;
+}
+
+.grep-param .param-value {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 8px;
+  border-radius: 3px;
+  flex: 1;
+  overflow-x: auto;
+}
+
+/* Glob Tool Display */
+.glob-tool-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.glob-params {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.glob-param {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.glob-param .param-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 60px;
+}
+
+.glob-param .param-value {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 8px;
+  border-radius: 3px;
+  flex: 1;
+  overflow-x: auto;
+}
+
 /* Copy Code Button - Enhanced with Shimmer */
 .copy-code-button {
   background: linear-gradient(135deg,
@@ -3133,6 +3398,7 @@ body {
   gap: 4px;
   position: relative;
   overflow: hidden;
+  opacity: 0;
 }
 
 .copy-code-button::before {
