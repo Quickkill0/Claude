@@ -518,6 +518,14 @@ export class MultiSessionManager {
       return false;
     }
 
+    // Stop any existing process first
+    if (activeSession.process) {
+      console.log('[SEND MESSAGE] Stopping existing process before starting new one');
+      this.stopSession(sessionId);
+      // Give it a moment to clean up
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     const session = activeSession.session;
     session.isProcessing = true;
     session.lastActive = new Date().toISOString();
@@ -526,6 +534,12 @@ export class MultiSessionManager {
     const showReasoning = config?.thinkingMode || session.thinkingMode;
     if (showReasoning) {
       message = `ultrathink\n\n${message}`;
+    }
+
+    // Prepend planning instructions if plan mode is enabled
+    const planMode = config?.planMode || session.planMode;
+    if (planMode) {
+      message = `IMPORTANT: You are in planning mode. Only create a plan - do NOT write any code or make any changes. Just analyze and plan the approach.\n\n${message}`;
     }
 
     // Initialize permission directory
@@ -572,6 +586,12 @@ export class MultiSessionManager {
     // Handle stdout
     if (claudeProcess.stdout) {
       claudeProcess.stdout.on('data', (data) => {
+        // Safety check: ignore if this process is no longer the active one
+        if (activeSession.process !== claudeProcess) {
+          console.log('[STDOUT] Ignoring data from old process');
+          return;
+        }
+
         const chunk = data.toString();
         console.log('[STDOUT CHUNK]:', chunk);
         activeSession.rawOutput += chunk;
@@ -599,6 +619,12 @@ export class MultiSessionManager {
     let errorOutput = '';
     if (claudeProcess.stderr) {
       claudeProcess.stderr.on('data', (data) => {
+        // Safety check: ignore if this process is no longer the active one
+        if (activeSession.process !== claudeProcess) {
+          console.log('[STDERR] Ignoring data from old process');
+          return;
+        }
+
         const output = data.toString();
 
         // Log all stderr output
@@ -615,32 +641,44 @@ export class MultiSessionManager {
     // Handle process close
     claudeProcess.on('close', (code) => {
       console.log('[PROCESS CLOSE] Code:', code, 'Error output:', errorOutput);
-      session.isProcessing = false;
-      activeSession.process = undefined;
 
-      if (code !== 0 && errorOutput.trim()) {
-        this.onStreamData(sessionId, {
-          type: 'system',
-          subtype: 'error',
-          message: { content: errorOutput.trim() },
-        });
+      // Safety check: only update state if this is still the active process
+      if (activeSession.process === claudeProcess) {
+        session.isProcessing = false;
+        activeSession.process = undefined;
+
+        if (code !== 0 && errorOutput.trim()) {
+          this.onStreamData(sessionId, {
+            type: 'system',
+            subtype: 'error',
+            message: { content: errorOutput.trim() },
+          });
+        }
+      } else {
+        console.log('[PROCESS CLOSE] Ignoring close event from old process');
       }
     });
 
     // Handle process error
     claudeProcess.on('error', (error) => {
       console.error('Claude process error:', error);
-      session.isProcessing = false;
-      activeSession.process = undefined;
 
-      const errorInfo = ErrorHandler.handleStreamError(error);
-      this.onStreamData(sessionId, {
-        type: 'system',
-        subtype: 'error',
-        message: {
-          content: ErrorHandler.formatError(errorInfo),
-        },
-      });
+      // Safety check: only update state if this is still the active process
+      if (activeSession.process === claudeProcess) {
+        session.isProcessing = false;
+        activeSession.process = undefined;
+
+        const errorInfo = ErrorHandler.handleStreamError(error);
+        this.onStreamData(sessionId, {
+          type: 'system',
+          subtype: 'error',
+          message: {
+            content: ErrorHandler.formatError(errorInfo),
+          },
+        });
+      } else {
+        console.log('[PROCESS ERROR] Ignoring error event from old process');
+      }
     });
 
     // Send message to Claude's stdin
@@ -661,7 +699,51 @@ export class MultiSessionManager {
       return false;
     }
 
-    activeSession.process.kill('SIGKILL');
+    const process = activeSession.process;
+
+    // 1. Remove all event listeners to prevent buffered data from being processed
+    if (process.stdout) {
+      process.stdout.removeAllListeners('data');
+      process.stdout.removeAllListeners('end');
+      process.stdout.removeAllListeners('error');
+      process.stdout.destroy();
+    }
+
+    if (process.stderr) {
+      process.stderr.removeAllListeners('data');
+      process.stderr.removeAllListeners('end');
+      process.stderr.removeAllListeners('error');
+      process.stderr.destroy();
+    }
+
+    if (process.stdin) {
+      process.stdin.removeAllListeners();
+      process.stdin.destroy();
+    }
+
+    process.removeAllListeners('close');
+    process.removeAllListeners('error');
+    process.removeAllListeners('exit');
+
+    // 2. Clear any buffered output
+    activeSession.rawOutput = '';
+
+    // 3. Use SIGTERM for graceful shutdown
+    process.kill('SIGTERM');
+
+    // 4. Fallback to SIGKILL after 1 second if process doesn't exit
+    const killTimeout = setTimeout(() => {
+      if (process.pid && !process.killed) {
+        console.log('[STOP] Process did not exit gracefully, sending SIGKILL');
+        process.kill('SIGKILL');
+      }
+    }, 1000);
+
+    // Clean up timeout when process actually exits
+    process.once('exit', () => {
+      clearTimeout(killTimeout);
+    });
+
     activeSession.process = undefined;
     activeSession.session.isProcessing = false;
 
@@ -791,11 +873,6 @@ export class MultiSessionManager {
     // Resume session if available
     if (session.claudeSessionId) {
       args.push('--resume', session.claudeSessionId);
-    }
-
-    // Plan mode
-    if (config?.planMode || session.planMode) {
-      args.push('--permission-mode', 'plan');
     }
 
     // YOLO mode
