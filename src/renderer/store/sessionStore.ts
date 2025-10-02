@@ -220,6 +220,32 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // New message from parser
       if (data.message) {
         get().addMessage(sessionId, data.message);
+
+        // If this is a tool-result, clear pending state from the matching tool message
+        // (this means permission was auto-granted via "Accept Always")
+        if (data.message.type === 'tool-result' && data.message.metadata?.toolUseId) {
+          const messages = new Map(get().messages);
+          const sessionMessages = messages.get(sessionId) || [];
+
+          // Find the tool message with matching toolUseId
+          const updatedMessages = sessionMessages.map(m => {
+            if (m.type === 'tool' && m.metadata?.toolUseId === data.message.metadata.toolUseId && m.metadata?.pendingPermission) {
+              return {
+                ...m,
+                metadata: {
+                  ...m.metadata,
+                  pendingPermission: false,
+                }
+              };
+            }
+            return m;
+          });
+
+          if (updatedMessages !== sessionMessages) {
+            messages.set(sessionId, updatedMessages);
+            set({ messages });
+          }
+        }
       }
     } else if (data.type === 'system' && data.subtype === 'message-update') {
       // Message update (streaming delta)

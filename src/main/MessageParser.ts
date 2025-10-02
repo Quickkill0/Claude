@@ -220,6 +220,7 @@ export class MessageParser {
               {
                 toolName,
                 isError,
+                toolUseId: block.tool_use_id,
               }
             ),
           });
