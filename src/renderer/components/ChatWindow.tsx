@@ -428,7 +428,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
             className={`btn-thinking-toggle ${session.thinkingMode ? 'active' : ''}`}
             onClick={handleToggleThinking}
             disabled={session.isProcessing}
-            title={session.thinkingMode ? 'Extended thinking: ON' : 'Extended thinking: OFF'}
+            title={session.thinkingMode ? 'Show reasoning: ON' : 'Show reasoning: OFF'}
           >
             💭
           </button>

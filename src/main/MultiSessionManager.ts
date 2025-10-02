@@ -522,6 +522,12 @@ export class MultiSessionManager {
     session.isProcessing = true;
     session.lastActive = new Date().toISOString();
 
+    // Prepend "ultrathink" if show reasoning mode is enabled
+    const showReasoning = config?.thinkingMode || session.thinkingMode;
+    if (showReasoning) {
+      message = `ultrathink\n\n${message}`;
+    }
+
     // Initialize permission directory
     const permissionsPath = await this.initializePermissionDirectory(sessionId);
     activeSession.permissionRequestsPath = permissionsPath;
@@ -785,11 +791,6 @@ export class MultiSessionManager {
     // Resume session if available
     if (session.claudeSessionId) {
       args.push('--resume', session.claudeSessionId);
-    }
-
-    // Extended thinking mode
-    if (config?.thinkingMode || session.thinkingMode) {
-      args.push('--extended-thinking');
     }
 
     // Plan mode
