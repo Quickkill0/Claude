@@ -403,9 +403,45 @@ async function executeEdit(args: any): Promise<string> {
 }
 
 async function executeBash(args: any): Promise<string> {
-  const { command, timeout = 120000 } = args;
+  const { command, timeout = 120000, run_in_background } = args;
   const cp = await import('child_process');
 
+  // Auto-detect long-running commands that should run in background
+  const longRunningPatterns = [
+    /npm\s+run\s+(dev|start|serve)/,
+    /yarn\s+(dev|start|serve)/,
+    /pnpm\s+(dev|start|serve)/,
+    /ng\s+serve/,
+    /vite(\s+|$)/,
+    /webpack-dev-server/,
+    /next\s+dev/,
+  ];
+
+  const shouldRunInBackground = run_in_background ||
+    longRunningPatterns.some(pattern => pattern.test(command.trim()));
+
+  // Handle background processes (long-running commands like npm run dev)
+  if (shouldRunInBackground) {
+    return new Promise((resolve, reject) => {
+      try {
+        // Spawn detached process that continues running
+        const proc = cp.spawn(command, [], {
+          shell: true,
+          detached: true,
+          stdio: 'ignore', // Don't capture output for background processes
+        });
+
+        // Unref so parent process can exit
+        proc.unref();
+
+        resolve(`Background process started (PID: ${proc.pid})\nNote: Use your terminal to monitor output and stop the process.`);
+      } catch (error: any) {
+        reject(new Error(`Failed to start background process: ${error.message}`));
+      }
+    });
+  }
+
+  // Handle normal foreground processes
   return new Promise((resolve, reject) => {
     // exec() uses shell by default, which properly handles npm and other commands
     cp.exec(command, {
