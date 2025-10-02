@@ -110,7 +110,7 @@ export class MultiSessionManager {
       // Mark as processing
       activeSession.processingRequests?.add(filename);
 
-      // Small delay to ensure file is fully written
+      // Small delay to ensure file is fully written (reduced from 100ms for faster response)
       setTimeout(async () => {
         try {
           if (!fs.existsSync(requestPath)) {
@@ -124,11 +124,23 @@ export class MultiSessionManager {
           console.log('[PERMISSIONS] Received request:', request);
 
           if (this.onPermissionRequest) {
+            // Extract appropriate path/command based on tool type
+            let pathInfo = 'unknown';
+            if (request.input) {
+              if (request.input.command) {
+                pathInfo = request.input.command;
+              } else if (request.input.file_path) {
+                pathInfo = request.input.file_path;
+              } else if (request.input.pattern) {
+                pathInfo = request.input.pattern;
+              }
+            }
+
             // Ask for permission
             const allowed = await this.onPermissionRequest(
               sessionId,
               request.tool || 'unknown',
-              request.input?.command || request.input?.file_path || 'unknown',
+              pathInfo,
               `${request.tool} permission requested`
             );
 
@@ -158,7 +170,7 @@ export class MultiSessionManager {
           // Remove from processing set
           activeSession.processingRequests?.delete(filename);
         }
-      }, 100);
+      }, 50);
     });
 
     activeSession.permissionWatcher = watcher;
@@ -899,11 +911,23 @@ export class MultiSessionManager {
         fs.writeFileSync(tempConfigPath, JSON.stringify(processedConfig, null, 2));
 
         args.push('--mcp-config', tempConfigPath);
-        args.push('--allowedTools', 'mcp__permissions__approval_prompt');
-        args.push('--permission-prompt-tool', 'mcp__permissions__approval_prompt');
+        // Block all built-in tools so they go through MCP permission system
+        args.push('--disallowedTools', 'Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'Task', 'ExitPlanMode');
+        // Only allow MCP-provided wrapper tools and essential tools
+        args.push('--allowedTools',
+          'mcp__permissions__Read',
+          'mcp__permissions__Write',
+          'mcp__permissions__Edit',
+          'mcp__permissions__Bash',
+          'mcp__permissions__Glob',
+          'mcp__permissions__Grep',
+          'mcp__permissions__ExitPlanMode',  // Plan mode exit requires permission
+          'TodoWrite',     // Allow todo management (no permission needed)
+          'SlashCommand'   // Allow slash commands (no permission needed)
+        );
         console.log('[MCP] Using config:', tempConfigPath);
         console.log('[MCP] Permissions dir:', permissionsPath);
-        console.log('[MCP] Using approval_prompt tool for permissions');
+        console.log('[MCP] Blocking built-in tools, routing through MCP permission wrappers');
       } else {
         console.log('[MCP] Config not found:', mcpConfigPath);
       }

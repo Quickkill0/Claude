@@ -508,15 +508,36 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         set({ sessions: updatedSessions });
       }
 
-      // Remove the permission request message from the chat
+      // Remove the permission request message and update pending tool messages
       const messages = new Map(get().messages);
       for (const [sessionId, sessionMessages] of messages.entries()) {
-        const filteredMessages = sessionMessages.filter(m => m.id !== requestId);
-        if (filteredMessages.length !== sessionMessages.length) {
-          messages.set(sessionId, filteredMessages);
+        let updated = false;
+        const updatedMessages = sessionMessages.map(m => {
+          // Remove permission request message
+          if (m.id === requestId) {
+            updated = true;
+            return null;
+          }
+          // Update pending tool messages to show granted/denied status
+          if (m.type === 'tool' && m.metadata?.pendingPermission) {
+            updated = true;
+            return {
+              ...m,
+              metadata: {
+                ...m.metadata,
+                pendingPermission: false,
+                permissionDenied: !allowed,
+              }
+            };
+          }
+          return m;
+        }).filter(m => m !== null) as Message[];
+
+        if (updated) {
+          messages.set(sessionId, updatedMessages);
           set({ messages });
           // Save updated messages
-          window.electronAPI.saveSessionMessages(sessionId, filteredMessages);
+          window.electronAPI.saveSessionMessages(sessionId, updatedMessages);
           break;
         }
       }

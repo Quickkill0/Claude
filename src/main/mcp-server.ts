@@ -78,25 +78,98 @@ async function handleRequest(request: MCPRequest): Promise<void> {
       sendResponse(request.id, {
         tools: [
           {
-            name: 'approval_prompt',
-            description: 'Request user permission to execute a tool',
+            name: 'Read',
+            description: 'Read file contents with permission checking',
             inputSchema: {
               type: 'object',
               properties: {
-                tool_name: {
-                  type: 'string',
-                  description: 'The name of the tool requesting permission',
-                },
-                input: {
-                  type: 'object',
-                  description: 'The input for the tool',
-                },
-                tool_use_id: {
-                  type: 'string',
-                  description: 'The unique tool use request ID',
-                },
+                file_path: { type: 'string', description: 'Path to file' },
+                offset: { type: 'number', description: 'Line offset' },
+                limit: { type: 'number', description: 'Line limit' },
               },
-              required: ['tool_name', 'input'],
+              required: ['file_path'],
+            },
+          },
+          {
+            name: 'Write',
+            description: 'Write file contents with permission checking',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                file_path: { type: 'string' },
+                content: { type: 'string' },
+              },
+              required: ['file_path', 'content'],
+            },
+          },
+          {
+            name: 'Edit',
+            description: 'Edit file contents with permission checking',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                file_path: { type: 'string' },
+                old_string: { type: 'string' },
+                new_string: { type: 'string' },
+                replace_all: { type: 'boolean' },
+              },
+              required: ['file_path', 'old_string', 'new_string'],
+            },
+          },
+          {
+            name: 'Bash',
+            description: 'Execute bash commands with permission checking',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                command: { type: 'string' },
+                description: { type: 'string' },
+                timeout: { type: 'number' },
+                run_in_background: { type: 'boolean' },
+              },
+              required: ['command'],
+            },
+          },
+          {
+            name: 'Glob',
+            description: 'Find files by pattern with permission checking',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                pattern: { type: 'string' },
+                path: { type: 'string' },
+              },
+              required: ['pattern'],
+            },
+          },
+          {
+            name: 'Grep',
+            description: 'Search file contents with permission checking',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                pattern: { type: 'string' },
+                path: { type: 'string' },
+                glob: { type: 'string' },
+                output_mode: { type: 'string' },
+                '-i': { type: 'boolean' },
+                '-n': { type: 'boolean' },
+                '-C': { type: 'number' },
+                '-A': { type: 'number' },
+                '-B': { type: 'number' },
+              },
+              required: ['pattern'],
+            },
+          },
+          {
+            name: 'ExitPlanMode',
+            description: 'Exit plan mode and present plan to user',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                plan: { type: 'string', description: 'The plan to present to the user' },
+              },
+              required: ['plan'],
             },
           },
         ],
@@ -121,26 +194,49 @@ async function handleToolCall(request: MCPRequest): Promise<void> {
   console.error('[MCP] Tool call:', name, JSON.stringify(args));
 
   try {
-    if (name === 'approval_prompt') {
-      // Handle permission approval
-      const { tool_name, input } = args;
-      const approved = await checkPermission(tool_name, input);
+    // Check permission first
+    const approved = await checkPermission(name, args);
 
-      console.error('[MCP] Permission check result:', approved);
-
-      const behavior = approved ? 'allow' : 'deny';
-      const result = {
-        behavior,
-        updatedInput: approved ? input : undefined,
-        message: approved ? undefined : 'Permission denied by user',
-      };
-
+    if (!approved) {
       sendResponse(request.id, {
-        content: [{ type: 'text', text: JSON.stringify(result) }],
+        content: [{ type: 'text', text: 'Permission denied by user' }],
+        isError: true,
       });
-    } else {
-      sendError(request.id, -32601, `Unknown tool: ${name}`);
+      return;
     }
+
+    // Execute the tool
+    let result: string;
+    switch (name) {
+      case 'Read':
+        result = await executeRead(args);
+        break;
+      case 'Write':
+        result = await executeWrite(args);
+        break;
+      case 'Edit':
+        result = await executeEdit(args);
+        break;
+      case 'Bash':
+        result = await executeBash(args);
+        break;
+      case 'Glob':
+        result = await executeGlob(args);
+        break;
+      case 'Grep':
+        result = await executeGrep(args);
+        break;
+      case 'ExitPlanMode':
+        result = await executeExitPlanMode(args);
+        break;
+      default:
+        sendError(request.id, -32601, `Unknown tool: ${name}`);
+        return;
+    }
+
+    sendResponse(request.id, {
+      content: [{ type: 'text', text: result }],
+    });
   } catch (error: any) {
     console.error('[MCP] Tool call error:', error);
     sendError(request.id, -32000, error.message);
@@ -209,8 +305,8 @@ async function requestPermissionViaFile(tool: string, input: any): Promise<boole
   console.error('[MCP] Writing permission request:', requestFile);
   fs.writeFileSync(requestFile, JSON.stringify(request, null, 2));
 
-  // Wait for response file
-  const response = await waitForResponse(responseFile, 60000); // 60 second timeout
+  // Wait for response file (no timeout - wait indefinitely for user response)
+  const response = await waitForResponse(responseFile);
 
   // Clean up
   try {
@@ -226,17 +322,9 @@ async function requestPermissionViaFile(tool: string, input: any): Promise<boole
 /**
  * Wait for response file to appear
  */
-async function waitForResponse(responseFile: string, timeout: number): Promise<any> {
-  const startTime = Date.now();
-
+async function waitForResponse(responseFile: string): Promise<any> {
   return new Promise((resolve, reject) => {
     const checkInterval = setInterval(() => {
-      if (Date.now() - startTime > timeout) {
-        clearInterval(checkInterval);
-        reject(new Error('Permission request timed out'));
-        return;
-      }
-
       if (fs.existsSync(responseFile)) {
         clearInterval(checkInterval);
         try {
@@ -249,6 +337,188 @@ async function waitForResponse(responseFile: string, timeout: number): Promise<a
       }
     }, 100); // Check every 100ms
   });
+}
+
+/**
+ * Tool execution functions
+ */
+async function executeRead(args: any): Promise<string> {
+  const { file_path, offset, limit } = args;
+
+  const content = fs.readFileSync(file_path, 'utf8');
+  const lines = content.split('\n');
+
+  const start = offset || 0;
+  const end = limit ? start + limit : lines.length;
+  const selectedLines = lines.slice(start, end);
+
+  // Format with line numbers like cat -n
+  return selectedLines
+    .map((line, idx) => `${start + idx + 1}\t${line}`)
+    .join('\n');
+}
+
+async function executeWrite(args: any): Promise<string> {
+  const { file_path, content } = args;
+  fs.writeFileSync(file_path, content, 'utf8');
+  return `File written successfully: ${file_path}`;
+}
+
+async function executeEdit(args: any): Promise<string> {
+  const { file_path, old_string, new_string, replace_all } = args;
+
+  let content = fs.readFileSync(file_path, 'utf8');
+
+  if (replace_all) {
+    content = content.split(old_string).join(new_string);
+  } else {
+    const index = content.indexOf(old_string);
+    if (index === -1) {
+      throw new Error('old_string not found in file');
+    }
+    content = content.substring(0, index) + new_string + content.substring(index + old_string.length);
+  }
+
+  fs.writeFileSync(file_path, content, 'utf8');
+  return `File edited successfully: ${file_path}`;
+}
+
+async function executeBash(args: any): Promise<string> {
+  const { command, timeout = 120000 } = args;
+  const cp = await import('child_process');
+
+  // Determine shell based on platform
+  const isWindows = process.platform === 'win32';
+  const shell = isWindows ? 'powershell.exe' : '/bin/bash';
+
+  return new Promise((resolve, reject) => {
+    // On Windows, wrap command in PowerShell to get better Unix-like behavior
+    const execCommand = isWindows
+      ? `powershell.exe -NoProfile -Command "${command.replace(/"/g, '`"')}"`
+      : command;
+
+    const proc = cp.exec(execCommand, {
+      timeout,
+      maxBuffer: 10 * 1024 * 1024,
+      shell: isWindows ? undefined : shell
+    }, (error, stdout, stderr) => {
+      if (error) {
+        // Include both stderr and error message for better debugging
+        const errorMsg = stderr ? `${stderr}\n${error.message}` : error.message;
+        reject(new Error(errorMsg));
+      } else {
+        resolve(stdout || '');
+      }
+    });
+  });
+}
+
+async function executeGlob(args: any): Promise<string> {
+  const { pattern, path: searchPath } = args;
+  const cp = await import('child_process');
+
+  // Use find command as a fallback for glob functionality
+  const cwd = searchPath || process.cwd();
+
+  // Convert glob pattern to find-compatible pattern
+  const findPattern = pattern.replace(/\*\*/g, '*').replace(/\*/g, '*');
+
+  return new Promise((resolve, reject) => {
+    // Use a simple approach: list all files and filter with glob pattern in Node
+    const { readdirSync, statSync } = fs;
+
+    function getAllFiles(dir: string, pattern: string): string[] {
+      const results: string[] = [];
+
+      try {
+        const files = readdirSync(dir);
+
+        for (const file of files) {
+          const filePath = path.join(dir, file);
+
+          try {
+            const stat = statSync(filePath);
+
+            if (stat.isDirectory()) {
+              // Recurse into subdirectories if pattern has **
+              if (pattern.includes('**')) {
+                results.push(...getAllFiles(filePath, pattern));
+              }
+            } else {
+              // Simple pattern matching
+              const globRegex = new RegExp(
+                '^' + pattern
+                  .replace(/\*\*/g, '.*')
+                  .replace(/\*/g, '[^/\\\\]*')
+                  .replace(/\./g, '\\.')
+                  .replace(/\?/g, '.') + '$'
+              );
+
+              if (globRegex.test(filePath) || globRegex.test(file)) {
+                results.push(filePath);
+              }
+            }
+          } catch (err) {
+            // Skip files we can't stat
+          }
+        }
+      } catch (err) {
+        // Skip directories we can't read
+      }
+
+      return results;
+    }
+
+    try {
+      const files = getAllFiles(cwd, pattern);
+      resolve(files.join('\n'));
+    } catch (error: any) {
+      reject(error);
+    }
+  });
+}
+
+async function executeGrep(args: any): Promise<string> {
+  const { pattern, path: searchPath, glob, output_mode, '-i': ignoreCase, '-n': lineNumbers, '-C': context, '-A': after, '-B': before } = args;
+  const cp = await import('child_process');
+
+  // Build ripgrep command
+  let rgArgs = ['--color', 'never'];
+
+  if (ignoreCase) rgArgs.push('-i');
+  if (lineNumbers) rgArgs.push('-n');
+  if (context) rgArgs.push('-C', String(context));
+  if (after) rgArgs.push('-A', String(after));
+  if (before) rgArgs.push('-B', String(before));
+  if (glob) rgArgs.push('--glob', glob);
+
+  if (output_mode === 'files_with_matches') {
+    rgArgs.push('-l');
+  } else if (output_mode === 'count') {
+    rgArgs.push('-c');
+  }
+
+  rgArgs.push(pattern);
+  if (searchPath) rgArgs.push(searchPath);
+
+  return new Promise((resolve, reject) => {
+    cp.execFile('rg', rgArgs, { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+      // rg returns exit code 1 when no matches found
+      if (error && error.code !== 1) {
+        reject(new Error(stderr || error.message));
+      } else {
+        resolve(stdout || 'No matches found');
+      }
+    });
+  });
+}
+
+async function executeExitPlanMode(args: any): Promise<string> {
+  const { plan } = args;
+
+  // ExitPlanMode doesn't actually execute anything, it just signals to exit plan mode
+  // The plan is passed through and will be displayed in the UI
+  return `Plan approved:\n\n${plan}`;
 }
 
 function sendResponse(id: string | number, result: any): void {

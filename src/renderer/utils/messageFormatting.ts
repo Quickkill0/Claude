@@ -277,6 +277,19 @@ export function getFileIcon(filePath: string): string {
 }
 
 /**
+ * Parse ExitPlanMode tool input
+ */
+export function parseExitPlanMode(content: string): {
+  plan: string;
+} | null {
+  const parsed = parseToolInput(content);
+  if (!parsed || !parsed.plan) {
+    return null;
+  }
+  return parsed;
+}
+
+/**
  * Format tool name for display
  */
 export function formatToolName(toolName: string): string {
@@ -289,6 +302,7 @@ export function formatToolName(toolName: string): string {
     BashOutput: 'Bash Output',
     KillShell: 'Kill Shell',
     SlashCommand: 'Slash Command',
+    ExitPlanMode: 'Plan Complete',
   };
 
   return specialNames[toolName] || toolName;

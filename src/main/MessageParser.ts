@@ -291,14 +291,23 @@ export class MessageParser {
         if (block.id && block.name) {
           this.toolUseIdToName.set(block.id, block.name);
         }
+
+        // Strip mcp__permissions__ prefix from tool names for display
+        const displayToolName = block.name.replace(/^mcp__permissions__/i, '');
+
+        // Check if this is an MCP permission-wrapped tool (needs approval)
+        const needsPermission = block.name.startsWith('mcp__permissions__');
+
         return {
           message: this.createMessage(
             sessionId,
             'tool',
             JSON.stringify(block.input || {}, null, 2),
             {
-              toolName: block.name,
+              toolName: displayToolName,
               rawInput: block.input,
+              toolUseId: block.id,
+              pendingPermission: needsPermission,
             }
           ),
         };

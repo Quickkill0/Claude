@@ -70,6 +70,8 @@ export interface Message {
     permissionRequest?: PermissionRequest;
     toolUseId?: string;
     contentBlockIndex?: number;
+    pendingPermission?: boolean;
+    permissionDenied?: boolean;
   };
 }
 

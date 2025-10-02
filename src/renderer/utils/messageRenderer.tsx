@@ -15,6 +15,7 @@ import {
   parseEditTool,
   parseWriteTool,
   parseReadTool,
+  parseExitPlanMode,
   truncateContent,
   formatDiffLines,
   getFileIcon,
@@ -347,6 +348,33 @@ export class MessageRenderer {
   }
 
   /**
+   * Render ExitPlanMode tool (plan completion)
+   */
+  static renderExitPlanMode(
+    content: string,
+    messageId: string,
+    config: RenderConfig
+  ): JSX.Element {
+    const planData = parseExitPlanMode(content);
+
+    if (!planData) {
+      return <pre className="tool-input-content">{content}</pre>;
+    }
+
+    return (
+      <div className="exit-plan-mode-content">
+        <div className="plan-summary">
+          <span className="plan-icon">📋</span>
+          <span className="plan-label">Plan Ready</span>
+        </div>
+        <div className="plan-content">
+          <ReactMarkdown>{planData.plan}</ReactMarkdown>
+        </div>
+      </div>
+    );
+  }
+
+  /**
    * Render tool input based on tool type
    */
   static renderToolInput(
@@ -370,6 +398,8 @@ export class MessageRenderer {
         return this.renderGrepTool(content, messageId, config);
       case 'Glob':
         return this.renderGlobTool(content, messageId, config);
+      case 'ExitPlanMode':
+        return this.renderExitPlanMode(content, messageId, config);
       default:
         // Check if content contains file_path and render it
         try {

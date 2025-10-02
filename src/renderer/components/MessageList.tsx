@@ -167,16 +167,22 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         const displayName = formatToolName(toolName);
         const isToolCollapsed = collapsedTools.has(message.id);
         const hasContent = content && content.trim().length > 0;
+        const isPending = metadata?.pendingPermission;
+        const isDenied = metadata?.permissionDenied;
 
         return (
-          <div key={message.id} className="message message-tool">
+          <div key={message.id} className={`message message-tool ${isPending ? 'pending' : ''} ${isDenied ? 'denied' : ''}`}>
             <div
               className="message-header"
               onClick={() => hasContent && toggleTool(message.id)}
               style={{ cursor: hasContent ? 'pointer' : 'default' }}
             >
-              <div className="message-icon">🔧</div>
-              <span className="message-label">{displayName}</span>
+              <div className="message-icon">{isDenied ? '❌' : isPending ? '⏳' : '🔧'}</div>
+              <span className="message-label">
+                {displayName}
+                {isPending && <span className="permission-badge">Awaiting Permission</span>}
+                {isDenied && <span className="permission-badge denied">Permission Denied</span>}
+              </span>
               {hasContent && (
                 <span className="collapse-icon">
                   {isToolCollapsed ? '▶' : '▼'}
