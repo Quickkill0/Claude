@@ -386,12 +386,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     loadedArchives.set(sessionId, null);
     set({ loadedArchivedConversation: loadedArchives });
 
-    // Clear claudeSessionId to start fresh
+    // Clear claudeSessionId to start fresh - update both frontend and backend
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.id === sessionId ? { ...s, claudeSessionId: undefined } : s
       ),
     }));
+
+    // Sync the cleared claudeSessionId to backend
+    await window.electronAPI.updateSession(sessionId, { claudeSessionId: undefined });
 
     // Save updated session state
     await window.electronAPI.saveSessionMessages(sessionId, []);
@@ -429,14 +432,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       loadedArchives.set(sessionId, filename);
       set({ loadedArchivedConversation: loadedArchives });
 
-      // Restore the claudeSessionId so the conversation can be resumed
+      // Restore the claudeSessionId so the conversation can be resumed - update both frontend and backend
       set((state) => ({
         sessions: state.sessions.map((s) =>
           s.id === sessionId ? { ...s, claudeSessionId: claudeSessionId } : s
         ),
       }));
 
-      console.log('loadArchivedConversation - restored claudeSessionId to session');
+      // Sync the restored claudeSessionId to backend
+      await window.electronAPI.updateSession(sessionId, { claudeSessionId: claudeSessionId });
+
+      console.log('loadArchivedConversation - restored claudeSessionId to session (frontend and backend)');
     } catch (error) {
       console.error('Failed to load archived conversation:', error);
     }
