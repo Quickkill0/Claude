@@ -15,7 +15,7 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
-  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadArchivedConversation, loadedArchivedConversation, toggleThinkingMode, togglePlanMode } = useSessionStore();
+  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadConversation, toggleThinkingMode, togglePlanMode } = useSessionStore();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -29,7 +29,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
 
   const sessionMessages = messages.get(session.id) || [];
   const inputText = getInputText(session.id);
-  const currentArchiveKey = loadedArchivedConversation.get(session.id);
 
   const setInputText = (text: string) => {
     setStoreInputText(session.id, text);
@@ -257,8 +256,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
     setShowHistory(true);
   };
 
-  const handleLoadConversation = async (filename: string) => {
-    await loadArchivedConversation(session.id, filename);
+  const handleLoadConversation = async (conversationId: string) => {
+    await loadConversation(session.id, conversationId);
   };
 
   const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -463,10 +462,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
       {showHistory && (
         <HistoryModal
           key={historyKey}
-          sessionId={session.id}
+          session={session}
           onClose={() => setShowHistory(false)}
           onLoadConversation={handleLoadConversation}
-          currentArchiveKey={currentArchiveKey}
         />
       )}
 

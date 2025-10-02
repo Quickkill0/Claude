@@ -150,31 +150,26 @@ function setupIPCHandlers() {
     return await persistenceManager.getSessionMessages(sessionId);
   });
 
-  ipcMain.handle(IPC_CHANNELS.SAVE_SESSION_MESSAGES, async (_, { sessionId, messages, claudeSessionId }) => {
-    // Check if this is an archived conversation key (path-timestamp format)
-    // Archive keys contain a path separator (/ or \) unlike UUIDs
-    const isArchiveKey = sessionId.includes('/') || sessionId.includes('\\');
+  ipcMain.handle(IPC_CHANNELS.SAVE_SESSION_MESSAGES, async (_, { sessionId, conversationId, messages, claudeSessionId }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
 
-    console.log('SAVE_SESSION_MESSAGES - sessionId:', sessionId);
-    console.log('SAVE_SESSION_MESSAGES - isArchiveKey:', isArchiveKey);
-    console.log('SAVE_SESSION_MESSAGES - claudeSessionId:', claudeSessionId);
+    if (!session) {
+      console.error('[IPC] Session not found:', sessionId);
+      return;
+    }
 
-    if (isArchiveKey) {
-      // This is an archived conversation key, save directly with claudeSessionId
-      console.log('SAVE_SESSION_MESSAGES - saving as archived');
-      await persistenceManager.saveArchivedMessages(sessionId, messages, claudeSessionId);
-    } else {
-      // Normal session save - get latest session state from memory
-      console.log('SAVE_SESSION_MESSAGES - saving as session');
-      const sessions = sessionManager.getAllSessions();
-      const session = sessions.find(s => s.id === sessionId);
-      if (session) {
-        // Update claudeSessionId if provided
-        if (claudeSessionId) {
-          session.claudeSessionId = claudeSessionId;
-        }
-        await persistenceManager.saveSession(session, messages);
-      }
+    // Update session's claudeSessionId if provided
+    if (claudeSessionId !== undefined) {
+      session.claudeSessionId = claudeSessionId;
+    }
+
+    // Save session metadata (includes messages.json for quick access)
+    await persistenceManager.saveSession(session, messages);
+
+    // If conversationId is provided, also save to history
+    if (conversationId) {
+      await persistenceManager.saveConversation(sessionId, conversationId, messages, session.claudeSessionId);
     }
   });
 
@@ -195,31 +190,12 @@ function setupIPCHandlers() {
     return null;
   });
 
-  ipcMain.handle('session:get-archived-conversations', async (_, sessionId: string) => {
-    console.log('IPC: get-archived-conversations called with sessionId:', sessionId);
-    // Get session from memory first
-    const sessions = sessionManager.getAllSessions();
-    const session = sessions.find(s => s.id === sessionId);
-    if (!session) {
-      console.log('IPC: session not found in memory:', sessionId);
-      return [];
-    }
-    // Pass session to persistence manager
-    const result = await persistenceManager.getArchivedConversationsForWorkingDir(session.workingDirectory);
-    console.log('IPC: get-archived-conversations returning:', result);
-    return result;
+  ipcMain.handle('session:get-conversations', async (_, sessionId: string) => {
+    return await persistenceManager.getConversations(sessionId);
   });
 
-  ipcMain.handle('session:load-archived-conversation', async (_, filename: string) => {
-    return await persistenceManager.loadArchivedConversation(filename);
-  });
-
-  ipcMain.handle('session:get-archived-claude-session-id', async (_, filename: string) => {
-    return await persistenceManager.getArchivedClaudeSessionId(filename);
-  });
-
-  ipcMain.handle('session:save-current-conversation', async (_, { sessionId, messages, claudeSessionId }) => {
-    await persistenceManager.saveCurrentConversation(sessionId, messages, claudeSessionId);
+  ipcMain.handle('session:load-conversation', async (_, { sessionId, conversationId }) => {
+    return await persistenceManager.loadConversation(sessionId, conversationId);
   });
 
   // Claude communication

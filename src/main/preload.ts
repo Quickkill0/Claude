@@ -40,13 +40,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateSession: (sessionId: string, updates: any) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_SESSION, { sessionId, updates }),
   getSessions: () => ipcRenderer.invoke(IPC_CHANNELS.GET_SESSIONS),
   getSessionMessages: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_SESSION_MESSAGES, sessionId),
-  saveSessionMessages: (sessionId: string, messages: any[], claudeSessionId?: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.SAVE_SESSION_MESSAGES, { sessionId, messages, claudeSessionId }),
-  getArchivedConversations: (sessionId: string) => ipcRenderer.invoke('session:get-archived-conversations', sessionId),
-  loadArchivedConversation: (filename: string) => ipcRenderer.invoke('session:load-archived-conversation', filename),
-  getArchivedClaudeSessionId: (filename: string) => ipcRenderer.invoke('session:get-archived-claude-session-id', filename),
-  saveCurrentConversation: (sessionId: string, messages: any[], claudeSessionId?: string) =>
-    ipcRenderer.invoke('session:save-current-conversation', { sessionId, messages, claudeSessionId }),
+  saveSessionMessages: (sessionId: string, conversationId: string | undefined, messages: any[], claudeSessionId?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SAVE_SESSION_MESSAGES, { sessionId, conversationId, messages, claudeSessionId }),
+  getConversations: (sessionId: string) => ipcRenderer.invoke('session:get-conversations', sessionId),
+  loadConversation: (sessionId: string, conversationId: string) => ipcRenderer.invoke('session:load-conversation', { sessionId, conversationId }),
 
   // Claude communication
   sendMessage: (sessionId: string, message: string, config: any) =>

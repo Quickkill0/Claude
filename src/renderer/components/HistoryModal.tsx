@@ -1,52 +1,49 @@
 import React, { useEffect, useState } from 'react';
+import type { Session } from '../../shared/types';
 
 interface HistoryModalProps {
-  sessionId: string;
+  session: Session;
   onClose: () => void;
-  onLoadConversation: (filename: string) => void;
-  currentArchiveKey?: string | null;
+  onLoadConversation: (conversationId: string) => void;
 }
 
-interface ArchivedConversation {
-  filename: string;
+interface Conversation {
+  conversationId: string;
   timestamp: string;
   messageCount: number;
   firstMessage: string;
-  isCurrent?: boolean;
+  isActive?: boolean;
 }
 
-const HistoryModal: React.FC<HistoryModalProps> = ({ sessionId, onClose, onLoadConversation, currentArchiveKey }) => {
-  const [conversations, setConversations] = useState<ArchivedConversation[]>([]);
+const HistoryModal: React.FC<HistoryModalProps> = ({ session, onClose, onLoadConversation }) => {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadConversations();
-  }, [sessionId]);
+  }, [session.id]);
 
   const loadConversations = async () => {
     try {
-      console.log('HistoryModal: loading conversations for sessionId:', sessionId);
-      const archived = await window.electronAPI.getArchivedConversations(sessionId);
-      console.log('HistoryModal: received archived conversations:', archived);
-      setConversations(archived);
+      console.log('[HistoryModal] Loading conversations for session:', session.id);
+      const convs = await window.electronAPI.getConversations(session.id);
+      console.log('[HistoryModal] Loaded conversations:', convs);
+      setConversations(convs);
     } catch (error) {
-      console.error('Failed to load conversations:', error);
+      console.error('[HistoryModal] Failed to load conversations:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLoadConversation = (filename: string) => {
-    onLoadConversation(filename);
+  const handleLoadConversation = (conversationId: string) => {
+    onLoadConversation(conversationId);
     onClose();
   };
 
   const formatDate = (timestamp: string) => {
     try {
-      // Convert timestamp from our storage format (2025-09-30T23-38-18.961Z)
-      // back to ISO format (2025-09-30T23:38:18.961Z) by replacing dashes after T with colons
-      const isoTimestamp = timestamp.replace(/T(\d{2})-(\d{2})-(\d{2})/, 'T$1:$2:$3');
-      const date = new Date(isoTimestamp);
+      const date = new Date(timestamp);
 
       if (isNaN(date.getTime())) {
         return timestamp;
@@ -72,25 +69,22 @@ const HistoryModal: React.FC<HistoryModalProps> = ({ sessionId, onClose, onLoadC
             <div className="history-empty">No archived conversations found</div>
           ) : (
             <div className="history-list">
-              {conversations.map((conv) => {
-                const isActive = currentArchiveKey === conv.filename;
-                return (
-                  <div
-                    key={conv.filename}
-                    className={`history-item ${isActive ? 'active' : ''}`}
-                    onClick={() => handleLoadConversation(conv.filename)}
-                  >
-                    <div className="history-item-header">
-                      <span className="history-item-date">
-                        {formatDate(conv.timestamp)}
-                        {isActive && <span className="active-badge"> • Active</span>}
-                      </span>
-                      <span className="history-item-count">{conv.messageCount} messages</span>
-                    </div>
-                    <div className="history-item-preview">{conv.firstMessage}</div>
+              {conversations.map((conv) => (
+                <div
+                  key={conv.conversationId}
+                  className={`history-item ${conv.isActive ? 'active' : ''}`}
+                  onClick={() => handleLoadConversation(conv.conversationId)}
+                >
+                  <div className="history-item-header">
+                    <span className="history-item-date">
+                      {formatDate(conv.timestamp)}
+                      {conv.isActive && <span className="active-badge"> • Active</span>}
+                    </span>
+                    <span className="history-item-count">{conv.messageCount} messages</span>
                   </div>
-                );
-              })}
+                  <div className="history-item-preview">{conv.firstMessage}</div>
+                </div>
+              ))}
             </div>
           )}
         </div>

@@ -7,7 +7,6 @@ interface SessionStore {
   messages: Map<string, Message[]>;
   isSidebarOpen: boolean;
   inputTexts: Map<string, string>; // sessionId -> input text
-  loadedArchivedConversation: Map<string, string | null>; // sessionId -> archived conversation key (if loaded from history)
 
   // Actions
   initializeSessions: () => Promise<void>;
@@ -23,7 +22,7 @@ interface SessionStore {
   getInputText: (sessionId: string) => string;
   startNewChat: (sessionId: string) => void;
   updateSessionModel: (sessionId: string, model: 'opus' | 'sonnet' | 'sonnet1m' | 'default') => void;
-  loadArchivedConversation: (sessionId: string, filename: string) => Promise<void>;
+  loadConversation: (sessionId: string, conversationId: string) => Promise<void>;
   toggleYoloMode: (sessionId: string) => void;
   toggleThinkingMode: (sessionId: string) => void;
   togglePlanMode: (sessionId: string) => void;
@@ -41,7 +40,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   messages: new Map(),
   isSidebarOpen: localStorage.getItem('sidebarOpen') !== 'false', // Default to true unless explicitly set to false
   inputTexts: new Map(),
-  loadedArchivedConversation: new Map(),
 
   initializeSessions: async () => {
     try {
@@ -134,6 +132,26 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   sendMessage: async (sessionId: string, message: string) => {
     try {
+      // Get session and ensure we have an activeConversationId
+      const session = get().sessions.find(s => s.id === sessionId);
+
+      // If no active conversation, create one
+      if (!session?.activeConversationId) {
+        const newConversationId = crypto.randomUUID();
+        console.log('[Send Message] Creating new conversation:', newConversationId);
+
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId ? { ...s, activeConversationId: newConversationId } : s
+          ),
+        }));
+
+        // Sync to backend
+        await window.electronAPI.updateSession(sessionId, {
+          activeConversationId: newConversationId,
+        });
+      }
+
       // Add user message immediately
       get().addMessage(sessionId, {
         id: crypto.randomUUID(),
@@ -143,9 +161,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         content: message,
       });
 
-      // Keep the loaded archive flag - we'll update the same archive when starting new chat
-      // Don't clear it here, otherwise we'll create duplicate archives
-
       // Update session processing state
       set((state) => ({
         sessions: state.sessions.map((s) =>
@@ -153,12 +168,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ),
       }));
 
-      // Get session to pass config
-      const session = get().sessions.find(s => s.id === sessionId);
+      // Get updated session to pass config
+      const updatedSession = get().sessions.find(s => s.id === sessionId);
       const config = {
-        ...(session?.yoloMode && { yoloMode: true }),
-        ...(session?.thinkingMode && { thinkingMode: true }),
-        ...(session?.planMode && { planMode: true }),
+        ...(updatedSession?.yoloMode && { yoloMode: true }),
+        ...(updatedSession?.thinkingMode && { thinkingMode: true }),
+        ...(updatedSession?.planMode && { planMode: true }),
       };
 
       await window.electronAPI.sendMessage(sessionId, message, Object.keys(config).length > 0 ? config : undefined);
@@ -194,8 +209,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     messages.set(sessionId, updatedMessages);
     set({ messages });
 
-    // Auto-save messages to persistence
-    window.electronAPI.saveSessionMessages(sessionId, updatedMessages);
+    // Auto-save messages to persistence (conversationId will be added during auto-save after processing)
+    const session = get().sessions.find(s => s.id === sessionId);
+    window.electronAPI.saveSessionMessages(sessionId, session?.activeConversationId, updatedMessages);
   },
 
   handleStreamData: (sessionId: string, data: ClaudeStreamData) => {
@@ -236,27 +252,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         if (data.sessionUpdate.isProcessing === false) {
           const sessionMessages = get().messages.get(sessionId) || [];
           const session = get().sessions.find(s => s.id === sessionId);
-          const loadedArchiveKey = get().loadedArchivedConversation.get(sessionId);
 
-          // Save current messages to session
-          window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
-
-          // Auto-save to history
           if (session && sessionMessages.length > 0) {
-            if (loadedArchiveKey && !loadedArchiveKey.endsWith('-current')) {
-              // Update the resumed archived conversation
-              console.log('[Auto-save] Updating resumed archive:', loadedArchiveKey);
-              window.electronAPI.saveSessionMessages(loadedArchiveKey, sessionMessages, session.claudeSessionId);
-            } else {
-              // Save to current conversation
-              console.log('[Auto-save] Saving to current conversation');
-              window.electronAPI.saveCurrentConversation(sessionId, sessionMessages, session.claudeSessionId);
-
-              // Mark that we're now working with current conversation
-              const loadedArchives = new Map(get().loadedArchivedConversation);
-              loadedArchives.set(sessionId, `${sessionId}-current`);
-              set({ loadedArchivedConversation: loadedArchives });
-            }
+            // Auto-save to history using activeConversationId
+            console.log('[Auto-save] Saving conversation:', session.activeConversationId);
+            window.electronAPI.saveSessionMessages(
+              sessionId,
+              session.activeConversationId,
+              sessionMessages,
+              session.claudeSessionId
+            );
           }
         }
       }
@@ -287,8 +292,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           ),
         }));
         // Save the updated session
+        const session = get().sessions.find(s => s.id === sessionId);
         const sessionMessages = get().messages.get(sessionId) || [];
-        window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
+        window.electronAPI.saveSessionMessages(sessionId, session?.activeConversationId, sessionMessages);
       }
     } else if (data.type === 'system' && data.subtype === 'stopped') {
       // Process was stopped by user
@@ -299,8 +305,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }));
 
       // Save current state
+      const session = get().sessions.find(s => s.id === sessionId);
       const sessionMessages = get().messages.get(sessionId) || [];
-      window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
+      window.electronAPI.saveSessionMessages(sessionId, session?.activeConversationId, sessionMessages);
     } else if (data.type === 'system' && data.subtype === 'error') {
       // Add error message if not already created by parser
       if (data.message?.content) {
@@ -320,8 +327,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }));
 
       // Save messages with error
+      const session = get().sessions.find(s => s.id === sessionId);
       const sessionMessages = get().messages.get(sessionId) || [];
-      window.electronAPI.saveSessionMessages(sessionId, sessionMessages);
+      window.electronAPI.saveSessionMessages(sessionId, session?.activeConversationId, sessionMessages);
     }
   },
 
@@ -344,60 +352,45 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   startNewChat: async (sessionId: string) => {
-    const sessionMessages = get().messages.get(sessionId) || [];
-    const loadedArchiveKey = get().loadedArchivedConversation.get(sessionId);
     const session = get().sessions.find(s => s.id === sessionId);
+    const sessionMessages = get().messages.get(sessionId) || [];
 
-    console.log('startNewChat - sessionId:', sessionId);
-    console.log('startNewChat - workingDirectory:', session?.workingDirectory);
-    console.log('startNewChat - loadedArchiveKey:', loadedArchiveKey);
-    console.log('startNewChat - sessionMessages:', sessionMessages);
-    console.log('startNewChat - claudeSessionId:', session?.claudeSessionId);
-
-    // Archive current conversation if there are any messages
-    if (sessionMessages.length > 0 && session) {
-      let archiveKey: string;
-
-      if (loadedArchiveKey && !loadedArchiveKey.endsWith('-current')) {
-        // Update the existing archive that was loaded (but not current.json)
-        archiveKey = loadedArchiveKey;
-        console.log('startNewChat - updating existing archive:', archiveKey, 'with claudeSessionId:', session.claudeSessionId);
-      } else {
-        // Create new archive with timestamp (replace colons with hyphens for Windows compatibility)
-        const timestamp = new Date().toISOString().replace(/:/g, '-');
-        const normalizedPath = session.workingDirectory.replace(/\\/g, '/');
-        archiveKey = `${normalizedPath}-${timestamp}`;
-        console.log('startNewChat - creating new archive:', archiveKey, 'with claudeSessionId:', session.claudeSessionId);
-      }
-
-      // Pass claudeSessionId when archiving - AWAIT to ensure it completes before clearing messages
-      await window.electronAPI.saveSessionMessages(archiveKey, sessionMessages, session.claudeSessionId);
-      console.log('startNewChat - archive saved successfully');
-    } else {
-      console.log('startNewChat - skipping archive (no messages)');
+    // Save current conversation if there are messages
+    if (sessionMessages.length > 0 && session?.activeConversationId) {
+      console.log('[New Chat] Saving current conversation:', session.activeConversationId);
+      await window.electronAPI.saveSessionMessages(
+        sessionId,
+        session.activeConversationId,
+        sessionMessages,
+        session.claudeSessionId
+      );
     }
 
-    // Clear current messages and loaded archive flag
+    // Generate new conversation ID
+    const newConversationId = crypto.randomUUID();
+    console.log('[New Chat] Starting new conversation:', newConversationId);
+
+    // Clear messages and update session
     const messages = new Map(get().messages);
     messages.set(sessionId, []);
     set({ messages });
 
-    const loadedArchives = new Map(get().loadedArchivedConversation);
-    loadedArchives.set(sessionId, null);
-    set({ loadedArchivedConversation: loadedArchives });
-
-    // Clear claudeSessionId to start fresh - update both frontend and backend
     set((state) => ({
       sessions: state.sessions.map((s) =>
-        s.id === sessionId ? { ...s, claudeSessionId: undefined } : s
+        s.id === sessionId
+          ? { ...s, activeConversationId: newConversationId, claudeSessionId: undefined }
+          : s
       ),
     }));
 
-    // Sync the cleared claudeSessionId to backend
-    await window.electronAPI.updateSession(sessionId, { claudeSessionId: undefined });
+    // Sync to backend
+    await window.electronAPI.updateSession(sessionId, {
+      activeConversationId: newConversationId,
+      claudeSessionId: undefined,
+    });
 
-    // Save updated session state
-    await window.electronAPI.saveSessionMessages(sessionId, []);
+    // Save empty state
+    await window.electronAPI.saveSessionMessages(sessionId, undefined, []);
   },
 
   updateSessionModel: async (sessionId: string, model: 'opus' | 'sonnet' | 'sonnet1m' | 'default') => {
@@ -411,40 +404,41 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     await window.electronAPI.updateSession(sessionId, { model });
   },
 
-  loadArchivedConversation: async (sessionId: string, filename: string) => {
+  loadConversation: async (sessionId: string, conversationId: string) => {
     try {
-      // Load archived messages and claudeSessionId
-      const [archivedMessages, claudeSessionId] = await Promise.all([
-        window.electronAPI.loadArchivedConversation(filename),
-        window.electronAPI.getArchivedClaudeSessionId(filename)
-      ]);
+      // Load conversation data (messages + claudeSessionId)
+      const { messages: conversationMessages, claudeSessionId } = await window.electronAPI.loadConversation(
+        sessionId,
+        conversationId
+      );
 
-      console.log('loadArchivedConversation - filename:', filename);
-      console.log('loadArchivedConversation - claudeSessionId:', claudeSessionId);
+      console.log('[Load Conversation] conversationId:', conversationId);
+      console.log('[Load Conversation] claudeSessionId:', claudeSessionId);
+      console.log('[Load Conversation] message count:', conversationMessages.length);
 
       // Set as current messages for this session
       const messages = new Map(get().messages);
-      messages.set(sessionId, archivedMessages);
+      messages.set(sessionId, conversationMessages);
       set({ messages });
 
-      // Mark that this session is showing an archived conversation
-      const loadedArchives = new Map(get().loadedArchivedConversation);
-      loadedArchives.set(sessionId, filename);
-      set({ loadedArchivedConversation: loadedArchives });
-
-      // Restore the claudeSessionId so the conversation can be resumed - update both frontend and backend
+      // Update session to mark this conversation as active and restore claudeSessionId
       set((state) => ({
         sessions: state.sessions.map((s) =>
-          s.id === sessionId ? { ...s, claudeSessionId: claudeSessionId } : s
+          s.id === sessionId
+            ? { ...s, activeConversationId: conversationId, claudeSessionId: claudeSessionId }
+            : s
         ),
       }));
 
-      // Sync the restored claudeSessionId to backend
-      await window.electronAPI.updateSession(sessionId, { claudeSessionId: claudeSessionId });
+      // Sync to backend
+      await window.electronAPI.updateSession(sessionId, {
+        activeConversationId: conversationId,
+        claudeSessionId: claudeSessionId,
+      });
 
-      console.log('loadArchivedConversation - restored claudeSessionId to session (frontend and backend)');
+      console.log('[Load Conversation] Conversation loaded successfully');
     } catch (error) {
-      console.error('Failed to load archived conversation:', error);
+      console.error('[Load Conversation] Failed to load conversation:', error);
     }
   },
 
