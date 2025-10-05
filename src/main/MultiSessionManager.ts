@@ -20,7 +20,7 @@ export class MultiSessionManager {
 
   constructor(
     private onStreamData: (sessionId: string, data: ClaudeStreamData) => void,
-    private onPermissionRequest?: (sessionId: string, tool: string, path: string, message: string) => Promise<{ allowed: boolean; alwaysAllow?: boolean }>
+    private onPermissionRequest?: (sessionId: string, tool: string, path: string, message: string, input?: any) => Promise<{ allowed: boolean; alwaysAllow?: boolean }>
   ) {}
 
   /**
@@ -205,25 +205,88 @@ export class MultiSessionManager {
     const activeSession = this.sessions.get(sessionId);
     if (!activeSession) return;
 
-    // Update session object's sessionPermissions array for UI display
-    const permission = {
-      tool,
-      path: filePath,
-      allowed: true,
-      createdAt: new Date().toISOString(),
-    };
+    // Save to settings.local.json for actual permission enforcement
+    const workingDir = activeSession.session.workingDirectory;
+    const settingsFile = path.join(workingDir, '.claude', 'settings.local.json');
 
+    // Format permission string based on tool type
+    let permissionString = '';
+    let displayPath = filePath; // Path to display in UI
+
+    if (tool === 'Bash') {
+      // For bash commands, extract the command from the input
+      // Format: Bash(command:*)
+      const command = input?.command?.split(' ')[0] || '';
+      permissionString = `Bash(${command}:*)`;
+      displayPath = command; // Show just the command in UI
+    } else if (filePath === '*' || filePath === '') {
+      // Allow all for this tool
+      permissionString = `${tool}(*)`;
+      displayPath = '*';
+    } else {
+      // For file operations, save the working directory pattern instead of specific file
+      // This allows the user to approve once for the entire working directory
+      const fileTools = ['Read', 'Write', 'Edit', 'NotebookEdit'];
+      if (fileTools.includes(tool)) {
+        // Use the working directory with recursive wildcard pattern
+        // Format: Tool(E:\Path\To\Dir\**)
+        permissionString = `${tool}(${workingDir}/**)`;
+        displayPath = `${workingDir}/**`; // Show the pattern in UI
+      } else {
+        // Other tools (Glob, Grep, WebFetch, etc.) use the specific path
+        permissionString = `${tool}(${filePath})`;
+        displayPath = filePath;
+      }
+    }
+
+    // Update session object's sessionPermissions array for UI display
+    // Use the formatted display path that matches what we save
     if (!activeSession.session.sessionPermissions) {
       activeSession.session.sessionPermissions = [];
     }
 
-    // Check if permission already exists
+    // Check if permission already exists in session object
     const exists = activeSession.session.sessionPermissions.some(
-      p => p.tool === tool && p.path === filePath
+      p => p.tool === tool && p.path === displayPath
     );
 
     if (!exists) {
-      activeSession.session.sessionPermissions.push(permission);
+      activeSession.session.sessionPermissions.push({
+        tool,
+        path: displayPath,
+        allowed: true,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    try {
+      // Read existing settings
+      let settings: any = {};
+      if (fs.existsSync(settingsFile)) {
+        settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+      }
+
+      // Initialize permissions structure if it doesn't exist
+      if (!settings.permissions) {
+        settings.permissions = { allow: [], deny: [] };
+      }
+      if (!settings.permissions.allow) {
+        settings.permissions.allow = [];
+      }
+
+      // Check if permission already exists in settings
+      const settingsExists = settings.permissions.allow.includes(permissionString);
+
+      if (!settingsExists) {
+        settings.permissions.allow.push(permissionString);
+
+        // Write settings back
+        fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+        console.log(`[PERMISSIONS] Saved to settings.local.json: ${permissionString}`);
+      }
+
+    } catch (error) {
+      console.error('[PERMISSIONS] Error saving to settings.local.json:', error);
     }
 
     console.log(`[PERMISSIONS] Saved permission for ${tool}: ${filePath}`);
@@ -241,6 +304,43 @@ export class MultiSessionManager {
     const permission = activeSession.session.sessionPermissions[index];
     if (!permission) return;
 
+    // Remove from settings.local.json
+    const workingDir = activeSession.session.workingDirectory;
+    const settingsFile = path.join(workingDir, '.claude', 'settings.local.json');
+
+    try {
+      if (fs.existsSync(settingsFile)) {
+        const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+
+        if (settings.permissions && settings.permissions.allow) {
+          // Format permission string to match what we saved
+          let permissionString = '';
+
+          if (permission.tool === 'Bash') {
+            // For bash, we need to reconstruct the command pattern
+            // This is best-effort since we don't store the original input
+            const pathParts = (permission.path || '').split(' ');
+            const command = pathParts[0] || '';
+            permissionString = `Bash(${command}:*)`;
+          } else if (!permission.path || permission.path === '*' || permission.path === '') {
+            permissionString = `${permission.tool}(*)`;
+          } else {
+            permissionString = `${permission.tool}(${permission.path})`;
+          }
+
+          // Remove the permission from allow array
+          const allowIndex = settings.permissions.allow.indexOf(permissionString);
+          if (allowIndex !== -1) {
+            settings.permissions.allow.splice(allowIndex, 1);
+            fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+            console.log(`[PERMISSIONS] Removed from settings.local.json: ${permissionString}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[PERMISSIONS] Error removing from settings.local.json:', error);
+    }
+
     // Remove from session object
     activeSession.session.sessionPermissions.splice(index, 1);
 
@@ -248,7 +348,7 @@ export class MultiSessionManager {
   }
 
   /**
-   * Loads permissions into session object (placeholder for now)
+   * Loads permissions into session object from settings.local.json
    * With PreToolUse hooks, permissions are defined in settings.local.json
    */
   async loadSessionPermissions(sessionId: string): Promise<void> {
@@ -256,9 +356,53 @@ export class MultiSessionManager {
     if (!activeSession) return;
 
     // Initialize empty permissions array
-    // Permissions are now managed through settings.local.json
     if (!activeSession.session.sessionPermissions) {
       activeSession.session.sessionPermissions = [];
+    }
+
+    // Load permissions from settings.local.json
+    const workingDir = activeSession.session.workingDirectory;
+    const settingsFile = path.join(workingDir, '.claude', 'settings.local.json');
+
+    try {
+      if (fs.existsSync(settingsFile)) {
+        const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+
+        if (settings.permissions && settings.permissions.allow) {
+          // Parse permission strings and add to session object
+          for (const permString of settings.permissions.allow) {
+            // Parse format: Tool(path) or Bash(command:*)
+            const match = permString.match(/^([^(]+)\(([^)]+)\)$/);
+            if (match) {
+              const tool = match[1];
+              let path = match[2];
+
+              // For Bash commands, extract just the command part
+              if (tool === 'Bash' && path.includes(':')) {
+                path = path.split(':')[0];
+              }
+
+              // Check if already exists (avoid duplicates)
+              const exists = activeSession.session.sessionPermissions.some(
+                p => p.tool === tool && p.path === path
+              );
+
+              if (!exists) {
+                activeSession.session.sessionPermissions.push({
+                  tool,
+                  path,
+                  allowed: true,
+                  createdAt: new Date().toISOString(),
+                });
+              }
+            }
+          }
+
+          console.log(`[PERMISSIONS] Loaded ${activeSession.session.sessionPermissions.length} permissions for session ${sessionId}`);
+        }
+      }
+    } catch (error) {
+      console.error('[PERMISSIONS] Error loading from settings.local.json:', error);
     }
 
     console.log(`[PERMISSIONS] Initialized permissions for session ${sessionId}`);

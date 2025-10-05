@@ -24,7 +24,7 @@ export class PermissionServer {
 
   constructor(
     private port: number,
-    private onPermissionRequest: (sessionId: string, tool: string, path: string, message: string) => Promise<{ allowed: boolean; alwaysAllow?: boolean }>,
+    private onPermissionRequest: (sessionId: string, tool: string, path: string, message: string, input?: any) => Promise<{ allowed: boolean; alwaysAllow?: boolean }>,
     private getSessionByClaudeId: (claudeSessionId: string) => string | null
   ) {}
 
@@ -70,6 +70,19 @@ export class PermissionServer {
               return;
             }
 
+            // Auto-approve certain tools (TodoWrite, etc.)
+            const autoApproveTools = ['TodoWrite'];
+            if (autoApproveTools.includes(request.tool_name)) {
+              console.log('[PERMISSION SERVER] Auto-approving tool:', request.tool_name);
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                decision: 'approve',
+                reason: 'Auto-approved tool',
+                alwaysAllow: false
+              }));
+              return;
+            }
+
             // Create a more readable message
             const message = this.formatPermissionMessage(request);
 
@@ -78,7 +91,8 @@ export class PermissionServer {
               sessionId,
               request.tool_name,
               request.path,
-              message
+              message,
+              request.tool_input // Pass tool input for proper permission formatting
             );
 
             // Send response

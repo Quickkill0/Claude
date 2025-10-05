@@ -74,8 +74,8 @@ async function initializeManagers() {
 }
 
 // Handle permission request
-async function handlePermissionRequest(sessionId: string, tool: string, filePath: string, message: string): Promise<{ allowed: boolean; alwaysAllow?: boolean }> {
-  console.log('[PERMISSION REQUEST]', { sessionId, tool, filePath, message });
+async function handlePermissionRequest(sessionId: string, tool: string, filePath: string, message: string, input?: any): Promise<{ allowed: boolean; alwaysAllow?: boolean }> {
+  console.log('[PERMISSION REQUEST]', { sessionId, tool, filePath, message, input });
 
   // Check always-allow permissions first
   const settings = await persistenceManager.getSettings();
@@ -102,6 +102,7 @@ async function handlePermissionRequest(sessionId: string, tool: string, filePath
       path: filePath,
       message,
       timestamp: new Date().toISOString(),
+      input, // Include tool input for proper permission formatting
     };
 
     console.log('[PERMISSION] Sending request to renderer:', requestId);
@@ -121,6 +122,7 @@ function setupIPCHandlers() {
   // Session management
   ipcMain.handle(IPC_CHANNELS.CREATE_SESSION, async (_, config) => {
     const session = await sessionManager.createSession(config);
+    await sessionManager.loadSessionPermissions(session.id);
     await persistenceManager.saveSession(session, []);
     return session;
   });
@@ -247,9 +249,10 @@ function setupIPCHandlers() {
       await sessionManager.savePermissionForSession(
         pending.request.sessionId,
         pending.request.tool,
-        pending.request.path
+        pending.request.path,
+        pending.request.input // Pass tool input for proper permission formatting
       );
-      console.log('[PERMISSION] Saved always-allow to permissions.json');
+      console.log('[PERMISSION] Saved always-allow to settings.local.json');
 
       // Save the updated session with the new permission
       const sessions = sessionManager.getAllSessions();

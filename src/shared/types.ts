@@ -107,6 +107,7 @@ export interface PermissionRequest {
   path: string;
   message: string;
   timestamp: string;
+  input?: any; // Tool-specific input data (e.g., command for Bash)
 }
 
 export interface AppSettings {

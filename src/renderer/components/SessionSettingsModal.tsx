@@ -11,6 +11,23 @@ interface SessionSettingsModalProps {
 const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({ session, onClose, onRemovePermission, onUpdateModel }) => {
   const permissions = session.sessionPermissions || [];
 
+  // Format permission for display
+  const formatPermission = (permission: any): string => {
+    const tool = permission.tool;
+    const path = permission.path || '';
+
+    if (tool === 'Bash') {
+      // For bash, extract just the command part
+      const command = path.split(' ')[0] || path;
+      return `Bash(${command}:*)`;
+    } else if (path === '*' || path === '') {
+      return `${tool}(*)`;
+    } else {
+      // Show the path pattern (should be like WorkingDir/**)
+      return `${tool}(${path})`;
+    }
+  };
+
   return (
     <div className="modal-overlay">
       <div className="settings-modal">
@@ -54,7 +71,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({ session, on
                 {permissions.map((permission, index) => (
                   <div key={index} className="permission-item">
                     <div className="permission-info">
-                      <div className="permission-tool">{permission.tool}</div>
+                      <div className="permission-tool">{formatPermission(permission)}</div>
                       <div className="permission-date">
                         Added: {new Date(permission.createdAt).toLocaleDateString()}
                       </div>
