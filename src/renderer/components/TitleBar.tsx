@@ -4,7 +4,6 @@ const TitleBar: React.FC = () => {
   return (
     <div className="title-bar">
       <div className="title-bar-left">
-        <div className="app-icon">C</div>
         <div className="app-title">Claude</div>
       </div>
       <div className="title-bar-controls">
