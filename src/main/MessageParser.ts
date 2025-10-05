@@ -323,12 +323,12 @@ export class MessageParser {
    * Format tool result content
    */
   private formatToolResult(content: any): string {
-    if (typeof content === 'string') {
-      return content;
-    }
+    let result: string;
 
-    if (Array.isArray(content)) {
-      return content
+    if (typeof content === 'string') {
+      result = content;
+    } else if (Array.isArray(content)) {
+      result = content
         .map((item) => {
           if (typeof item === 'string') {
             return item;
@@ -339,16 +339,26 @@ export class MessageParser {
           return JSON.stringify(item);
         })
         .join('\n');
-    }
-
-    if (content && typeof content === 'object') {
+    } else if (content && typeof content === 'object') {
       if (content.type === 'text') {
-        return content.text || '';
+        result = content.text || '';
+      } else {
+        result = JSON.stringify(content, null, 2);
       }
-      return JSON.stringify(content, null, 2);
+    } else {
+      result = String(content);
     }
 
-    return String(content);
+    // Remove system reminder tags
+    return this.removeSystemReminders(result);
+  }
+
+  /**
+   * Remove system reminder tags from content
+   */
+  private removeSystemReminders(content: string): string {
+    // Remove <system-reminder>...</system-reminder> tags and their content
+    return content.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '').trim();
   }
 
   /**

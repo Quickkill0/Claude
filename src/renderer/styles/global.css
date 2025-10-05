@@ -2300,7 +2300,30 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
   margin-bottom: 16px;
+}
+
+.permission-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.permission-list::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+  border-radius: 4px;
+}
+
+.permission-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.permission-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
 }
 
 .permission-item {

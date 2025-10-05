@@ -22,6 +22,7 @@ import {
   getFileName,
   normalizePath,
   formatToolName,
+  removeSystemReminders,
 } from './messageFormatting';
 
 export interface RenderConfig {
@@ -673,7 +674,9 @@ export class MessageRenderer {
     messageId: string,
     config: RenderConfig
   ): JSX.Element {
-    const fileRefs = extractFileReferences(content);
+    // Remove system reminders before rendering
+    const cleanContent = removeSystemReminders(content);
+    const fileRefs = extractFileReferences(cleanContent);
 
     return (
       <ReactMarkdown
@@ -742,7 +745,7 @@ export class MessageRenderer {
           },
         }}
       >
-        {content}
+        {cleanContent}
       </ReactMarkdown>
     );
   }

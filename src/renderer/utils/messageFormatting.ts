@@ -307,3 +307,11 @@ export function formatToolName(toolName: string): string {
 
   return specialNames[toolName] || toolName;
 }
+
+/**
+ * Remove system reminder tags from content
+ */
+export function removeSystemReminders(content: string): string {
+  // Remove <system-reminder>...</system-reminder> tags and their content
+  return content.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '').trim();
+}
