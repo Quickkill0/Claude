@@ -1,5 +1,7 @@
 import * as http from 'http';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface PermissionRequestFromHook {
   tool_name: string;
@@ -25,7 +27,8 @@ export class PermissionServer {
   constructor(
     private port: number,
     private onPermissionRequest: (sessionId: string, tool: string, path: string, message: string, input?: any) => Promise<{ allowed: boolean; alwaysAllow?: boolean }>,
-    private getSessionByClaudeId: (claudeSessionId: string) => string | null
+    private getSessionByClaudeId: (claudeSessionId: string) => string | null,
+    private getSessionWorkingDir: (sessionId: string) => string | null
   ) {}
 
   /**
@@ -78,6 +81,19 @@ export class PermissionServer {
               res.end(JSON.stringify({
                 decision: 'approve',
                 reason: 'Auto-approved tool',
+                alwaysAllow: false
+              }));
+              return;
+            }
+
+            // Check settings.local.json for saved permissions
+            const isAutoAllowed = await this.checkSavedPermissions(sessionId, request.tool_name, request.path, request.tool_input);
+            if (isAutoAllowed) {
+              console.log('[PERMISSION SERVER] Auto-approving from saved permissions:', request.tool_name, request.path);
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                decision: 'approve',
+                reason: 'Saved permission',
                 alwaysAllow: false
               }));
               return;
@@ -202,6 +218,53 @@ export class PermissionServer {
         return `Edit notebook: ${path}`;
       default:
         return `${tool}: ${path}`;
+    }
+  }
+
+  /**
+   * Checks if a permission is already saved in settings.local.json
+   */
+  private async checkSavedPermissions(sessionId: string, tool: string, filePath: string, input?: any): Promise<boolean> {
+    try {
+      const workingDir = this.getSessionWorkingDir(sessionId);
+      if (!workingDir) return false;
+
+      const settingsFile = path.join(workingDir, '.claude', 'settings.local.json');
+      if (!fs.existsSync(settingsFile)) return false;
+
+      const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+      if (!settings.permissions || !settings.permissions.allow) return false;
+
+      // Build the permission patterns to check
+      const patternsToCheck: string[] = [];
+
+      if (tool === 'Bash') {
+        const command = input?.command?.split(' ')[0] || '';
+        patternsToCheck.push(`Bash(${command}:*)`);
+      } else {
+        // Check for wildcard all
+        patternsToCheck.push(`${tool}(*)`);
+
+        // Check for working directory pattern
+        patternsToCheck.push(`${tool}(${workingDir}/**)`);
+
+        // Check for specific path
+        if (filePath) {
+          patternsToCheck.push(`${tool}(${filePath})`);
+        }
+      }
+
+      // Check if any pattern matches
+      for (const pattern of patternsToCheck) {
+        if (settings.permissions.allow.includes(pattern)) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error('[PERMISSION SERVER] Error checking saved permissions:', error);
+      return false;
     }
   }
 }

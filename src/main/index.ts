@@ -356,12 +356,19 @@ function getSessionByClaudeId(claudeSessionId: string): string | null {
   return session?.id || null;
 }
 
+// Get session working directory by session ID
+function getSessionWorkingDir(sessionId: string): string | null {
+  const sessions = sessionManager.getAllSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  return session?.workingDirectory || null;
+}
+
 // App lifecycle
 app.whenReady().then(async () => {
   await initializeManagers();
 
-  // Start permission server with session ID mapper
-  permissionServer = new PermissionServer(8765, handlePermissionRequest, getSessionByClaudeId);
+  // Start permission server with session ID mapper and working directory getter
+  permissionServer = new PermissionServer(8765, handlePermissionRequest, getSessionByClaudeId, getSessionWorkingDir);
   await permissionServer.start();
 
   setupIPCHandlers();
