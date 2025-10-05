@@ -64,24 +64,29 @@ export class MultiSessionManager {
     if (fs.existsSync(settingsFile)) {
       try {
         settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+        console.log('[HOOKS] Found existing settings.local.json, preserving existing configuration');
       } catch (error) {
         console.error('[HOOKS] Error reading settings.local.json:', error);
+        settings = {};
       }
     }
 
-    // Add PreToolUse hook configuration
-    settings.hooks = {
-      PreToolUse: [{
-        matcher: "*",
-        hooks: [{
-          type: "command",
-          command: "python .claude/hooks/permission-proxy.py",
-          timeout: 300
-        }]
-      }]
-    };
+    // Preserve existing hooks configuration and only update PreToolUse
+    if (!settings.hooks) {
+      settings.hooks = {};
+    }
 
-    // Write settings back
+    // Add/update only the PreToolUse hook, preserving any other hooks
+    settings.hooks.PreToolUse = [{
+      matcher: "*",
+      hooks: [{
+        type: "command",
+        command: "python .claude/hooks/permission-proxy.py",
+        timeout: 300
+      }]
+    }];
+
+    // Write settings back (preserves all existing settings including permissions)
     fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
     console.log('[HOOKS] Configured PreToolUse hooks in:', settingsFile);
   }
