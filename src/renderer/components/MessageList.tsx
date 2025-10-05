@@ -49,7 +49,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     if (wasAtBottomRef.current) {
       scrollToBottom();
     }
-  }, [messages]);
+  }, [messages, collapsedThinking, collapsedTools, expandedContent]);
 
   const toggleThinking = (id: string) => {
     const newCollapsed = new Set(collapsedThinking);
