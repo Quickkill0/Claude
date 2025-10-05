@@ -1745,7 +1745,7 @@ body {
   margin: 0;
   cursor: pointer;
   font-size: 18px;
-  line-height: 0;
+  line-height: 1;
   transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
@@ -1753,8 +1753,8 @@ body {
   margin-right: 4px;
   opacity: 0.4;
   align-self: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   vertical-align: middle;
 }
 

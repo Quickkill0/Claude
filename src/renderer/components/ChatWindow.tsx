@@ -447,7 +447,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
             disabled={session.isProcessing}
             title="Attach image"
           >
-            📷
+            🖼️
           </button>
           <button
             className="btn-send"
