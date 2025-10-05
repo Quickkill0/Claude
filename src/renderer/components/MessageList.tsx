@@ -10,6 +10,8 @@ interface MessageListProps {
 
 const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+  const wasAtBottomRef = useRef<boolean>(true);
   const [collapsedThinking, setCollapsedThinking] = useState<Set<string>>(new Set());
   const [collapsedTools, setCollapsedTools] = useState<Set<string>>(new Set());
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -20,8 +22,33 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const isScrolledToBottom = () => {
+    const container = messageListRef.current;
+    if (!container) return true;
+
+    const threshold = 100; // pixels from bottom to still consider "at bottom"
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+    return isAtBottom;
+  };
+
+  // Track scroll position
   useEffect(() => {
-    scrollToBottom();
+    const container = messageListRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      wasAtBottomRef.current = isScrolledToBottom();
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    // Only auto-scroll if user was at the bottom before the update
+    if (wasAtBottomRef.current) {
+      scrollToBottom();
+    }
   }, [messages]);
 
   const toggleThinking = (id: string) => {
@@ -324,7 +351,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   };
 
   return (
-    <div className="message-list">
+    <div className="message-list" ref={messageListRef}>
       {messages.length === 0 ? (
         <div className="empty-state">
           <h2>Start a conversation with Claude</h2>
