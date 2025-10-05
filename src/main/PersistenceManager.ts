@@ -149,8 +149,9 @@ export class PersistenceManager {
       // Save session metadata
       await fs.writeFile(sessionFilePath, JSON.stringify(session, null, 2), 'utf-8');
 
-      // Save current messages
-      await fs.writeFile(messagesFilePath, JSON.stringify(messages, null, 2), 'utf-8');
+      // Save current messages (ensure it's always an array)
+      const safeMessages = Array.isArray(messages) ? messages : [];
+      await fs.writeFile(messagesFilePath, JSON.stringify(safeMessages, null, 2), 'utf-8');
     } catch (error) {
       console.error('Failed to save session:', error);
     }

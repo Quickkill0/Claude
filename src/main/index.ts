@@ -324,7 +324,7 @@ function setupIPCHandlers() {
       const sessions = sessionManager.getAllSessions();
       const session = sessions.find(s => s.id === pending.request.sessionId);
       if (session) {
-        const messages = await persistenceManager.getSessionMessages(pending.request.sessionId);
+        const messages = await persistenceManager.getSessionMessages(pending.request.sessionId) || [];
         await persistenceManager.saveSession(session, messages);
       }
     }
@@ -343,7 +343,7 @@ function setupIPCHandlers() {
     const sessions = sessionManager.getAllSessions();
     const session = sessions.find(s => s.id === sessionId);
     if (session) {
-      const messages = await persistenceManager.getSessionMessages(sessionId);
+      const messages = await persistenceManager.getSessionMessages(sessionId) || [];
       await persistenceManager.saveSession(session, messages);
     }
 
