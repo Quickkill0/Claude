@@ -126,6 +126,22 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     expandedContent,
   };
 
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInMins = Math.floor(diffInMs / 60000);
+    const diffInHours = Math.floor(diffInMs / 3600000);
+    const diffInDays = Math.floor(diffInMs / 86400000);
+
+    if (diffInMins < 1) return 'Just now';
+    if (diffInMins < 60) return `${diffInMins}m ago`;
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   const renderMessage = (message: Message) => {
     const { type, content, metadata } = message;
 
@@ -133,19 +149,26 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
       case 'user':
         return (
           <div key={message.id} className="message message-user">
-            <div className="message-header">
-              <div className="message-icon">👤</div>
-              <span className="message-label">You</span>
-              <button
-                className="copy-btn"
-                onClick={() => copyToClipboard(content, `user-${message.id}`)}
-                title="Copy message"
-              >
-                {copiedCode === `user-${message.id}` ? '✓' : '📋'}
-              </button>
+            <div className="message-avatar">
+              <div className="avatar-circle user-avatar">
+                <span>You</span>
+              </div>
             </div>
-            <div className="message-content">
-              <div className="message-text">{content}</div>
+            <div className="message-bubble">
+              <div className="message-header">
+                <span className="message-label">You</span>
+                <span className="message-timestamp">{formatTimestamp(message.timestamp)}</span>
+                <button
+                  className="copy-btn"
+                  onClick={() => copyToClipboard(content, `user-${message.id}`)}
+                  title="Copy message"
+                >
+                  {copiedCode === `user-${message.id}` ? '✓' : '📋'}
+                </button>
+              </div>
+              <div className="message-content">
+                <div className="message-text">{content}</div>
+              </div>
             </div>
           </div>
         );
@@ -153,19 +176,30 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
       case 'assistant':
         return (
           <div key={message.id} className="message message-claude">
-            <div className="message-header">
-              <div className="message-icon">🤖</div>
-              <span className="message-label">Claude</span>
-              <button
-                className="copy-btn"
-                onClick={() => copyMessageContent(content, message.id)}
-                title="Copy message"
-              >
-                {copiedCode === `msg-${message.id}` ? '✓' : '📋'}
-              </button>
+            <div className="message-avatar">
+              <div className="avatar-circle claude-avatar">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="currentColor" opacity="0.6"/>
+                  <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
             </div>
-            <div className="message-content">
-              {MessageRenderer.renderEnhancedMarkdown(content, message.id, renderConfig)}
+            <div className="message-bubble">
+              <div className="message-header">
+                <span className="message-label">Claude</span>
+                <span className="message-timestamp">{formatTimestamp(message.timestamp)}</span>
+                <button
+                  className="copy-btn"
+                  onClick={() => copyMessageContent(content, message.id)}
+                  title="Copy message"
+                >
+                  {copiedCode === `msg-${message.id}` ? '✓' : '📋'}
+                </button>
+              </div>
+              <div className="message-content">
+                {MessageRenderer.renderEnhancedMarkdown(content, message.id, renderConfig)}
+              </div>
             </div>
           </div>
         );
@@ -174,18 +208,28 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         const isThinkingCollapsed = collapsedThinking.has(message.id);
         return (
           <div key={message.id} className="message message-thinking">
-            <div className="message-header" onClick={() => toggleThinking(message.id)} style={{ cursor: 'pointer' }}>
-              <div className="message-icon">💭</div>
-              <span className="message-label">Thinking</span>
-              <span className="collapse-icon">
-                {isThinkingCollapsed ? '▶' : '▼'}
-              </span>
-            </div>
-            {!isThinkingCollapsed && (
-              <div className="message-content">
-                <div className="message-text">{content}</div>
+            <div className="message-avatar">
+              <div className="avatar-circle thinking-avatar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.3"/>
+                  <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
               </div>
-            )}
+            </div>
+            <div className="message-bubble">
+              <div className="message-header" onClick={() => toggleThinking(message.id)} style={{ cursor: 'pointer' }}>
+                <span className="message-label">Thinking</span>
+                <span className="message-timestamp">{formatTimestamp(message.timestamp)}</span>
+                <span className="collapse-icon">
+                  {isThinkingCollapsed ? '▶' : '▼'}
+                </span>
+              </div>
+              {!isThinkingCollapsed && (
+                <div className="message-content">
+                  <div className="message-text">{content}</div>
+                </div>
+              )}
+            </div>
           </div>
         );
 
@@ -199,28 +243,37 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
 
         return (
           <div key={message.id} className={`message message-tool ${isPending ? 'pending' : ''} ${isDenied ? 'denied' : ''}`}>
-            <div
-              className="message-header"
-              onClick={() => hasContent && toggleTool(message.id)}
-              style={{ cursor: hasContent ? 'pointer' : 'default' }}
-            >
-              <div className="message-icon">{isDenied ? '❌' : isPending ? '⏳' : '🔧'}</div>
-              <span className="message-label">
-                {displayName}
-                {isPending && <span className="permission-badge">Awaiting Permission</span>}
-                {isDenied && <span className="permission-badge denied">Permission Denied</span>}
-              </span>
-              {hasContent && (
-                <span className="collapse-icon">
-                  {isToolCollapsed ? '▶' : '▼'}
+            <div className="message-avatar">
+              <div className="avatar-circle tool-avatar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" stroke="currentColor" strokeWidth="2" fill="none"/>
+                </svg>
+              </div>
+            </div>
+            <div className="message-bubble">
+              <div
+                className="message-header"
+                onClick={() => hasContent && toggleTool(message.id)}
+                style={{ cursor: hasContent ? 'pointer' : 'default' }}
+              >
+                <span className="message-label">
+                  {displayName}
+                  {isPending && <span className="permission-badge">Awaiting Permission</span>}
+                  {isDenied && <span className="permission-badge denied">Permission Denied</span>}
                 </span>
+                <span className="message-timestamp">{formatTimestamp(message.timestamp)}</span>
+                {hasContent && (
+                  <span className="collapse-icon">
+                    {isToolCollapsed ? '▶' : '▼'}
+                  </span>
+                )}
+              </div>
+              {hasContent && !isToolCollapsed && (
+                <div className="message-content">
+                  {MessageRenderer.renderToolInput(toolName, content, message.id, renderConfig)}
+                </div>
               )}
             </div>
-            {hasContent && !isToolCollapsed && (
-              <div className="message-content">
-                {MessageRenderer.renderToolInput(toolName, content, message.id, renderConfig)}
-              </div>
-            )}
           </div>
         );
 
@@ -236,38 +289,59 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
             key={message.id}
             className={`message message-tool-result ${isError ? 'error' : ''}`}
           >
-            <div
-              className="message-header"
-              onClick={() => toggleTool(message.id)}
-              style={{ cursor: 'pointer' }}
-            >
-              <div className="message-icon">
-                {isError ? '❌' : '✅'}
+            <div className="message-avatar">
+              <div className={`avatar-circle ${isError ? 'error-avatar' : 'success-avatar'}`}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  {isError ? (
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  ) : (
+                    <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  )}
+                </svg>
               </div>
-              <span className="message-label">
-                {isError ? 'Error' : 'Result'}
-              </span>
-              <span className="collapse-icon">
-                {isResultCollapsed ? '▶' : '▼'}
-              </span>
             </div>
-            {!isResultCollapsed && (
-              <div className="message-content">
-                {MessageRenderer.renderToolResult(formattedContent, isJson)}
+            <div className="message-bubble">
+              <div
+                className="message-header"
+                onClick={() => toggleTool(message.id)}
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="message-label">
+                  {isError ? 'Error' : 'Result'}
+                </span>
+                <span className="message-timestamp">{formatTimestamp(message.timestamp)}</span>
+                <span className="collapse-icon">
+                  {isResultCollapsed ? '▶' : '▼'}
+                </span>
               </div>
-            )}
+              {!isResultCollapsed && (
+                <div className="message-content">
+                  {MessageRenderer.renderToolResult(formattedContent, isJson)}
+                </div>
+              )}
+            </div>
           </div>
         );
 
       case 'system':
         return (
           <div key={message.id} className="message message-system">
-            <div className="message-header">
-              <div className="message-icon">ℹ️</div>
-              <span className="message-label">System</span>
+            <div className="message-avatar">
+              <div className="avatar-circle system-avatar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
             </div>
-            <div className="message-content">
-              <div className="message-text">{content}</div>
+            <div className="message-bubble">
+              <div className="message-header">
+                <span className="message-label">System</span>
+                <span className="message-timestamp">{formatTimestamp(message.timestamp)}</span>
+              </div>
+              <div className="message-content">
+                <div className="message-text">{content}</div>
+              </div>
             </div>
           </div>
         );
@@ -275,19 +349,29 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
       case 'error':
         return (
           <div key={message.id} className="message message-error">
-            <div className="message-header">
-              <div className="message-icon">⚠️</div>
-              <span className="message-label">Error</span>
-              <button
-                className="copy-btn"
-                onClick={() => copyToClipboard(content, `error-${message.id}`)}
-                title="Copy error"
-              >
-                {copiedCode === `error-${message.id}` ? '✓' : '📋'}
-              </button>
+            <div className="message-avatar">
+              <div className="avatar-circle error-avatar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 9v4m0 4h.01M4.93 4.93l14.14 14.14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+              </div>
             </div>
-            <div className="message-content">
-              <div className="message-text">{content}</div>
+            <div className="message-bubble">
+              <div className="message-header">
+                <span className="message-label">Error</span>
+                <span className="message-timestamp">{formatTimestamp(message.timestamp)}</span>
+                <button
+                  className="copy-btn"
+                  onClick={() => copyToClipboard(content, `error-${message.id}`)}
+                  title="Copy error"
+                >
+                  {copiedCode === `error-${message.id}` ? '✓' : '📋'}
+                </button>
+              </div>
+              <div className="message-content">
+                <div className="message-text">{content}</div>
+              </div>
             </div>
           </div>
         );
@@ -302,44 +386,54 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
 
         return (
           <div key={message.id} className="message message-permission">
-            <div className="message-header">
-              <div className="message-icon">🔐</div>
-              <span className="message-label">Permission Required</span>
-            </div>
-            <div className="message-content">
-              <div className="permission-message">{content}</div>
-              <div className="permission-details">
-                <div className="detail-row">
-                  <span className="detail-label">Tool:</span>
-                  <span className="detail-value">{permissionRequest.tool}</span>
-                </div>
-                <div className="detail-row">
-                  <span className="detail-label">Path:</span>
-                  <span className="detail-value path">{permissionRequest.path}</span>
-                </div>
+            <div className="message-avatar">
+              <div className="avatar-circle permission-avatar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
               </div>
-              <p className="permission-hint">
-                Choose "Accept Always" to save this permission and skip future prompts for this tool.
-              </p>
-              <div className="permission-actions">
-                <button
-                  className="btn outlined"
-                  onClick={() => handlePermissionResponse(false, false)}
-                >
-                  Deny
-                </button>
-                <button
-                  className="btn secondary"
-                  onClick={() => handlePermissionResponse(true, false)}
-                >
-                  Accept Once
-                </button>
-                <button
-                  className="btn primary"
-                  onClick={() => handlePermissionResponse(true, true)}
-                >
-                  Accept Always
-                </button>
+            </div>
+            <div className="message-bubble">
+              <div className="message-header">
+                <span className="message-label">Permission Required</span>
+                <span className="message-timestamp">{formatTimestamp(message.timestamp)}</span>
+              </div>
+              <div className="message-content">
+                <div className="permission-message">{content}</div>
+                <div className="permission-details">
+                  <div className="detail-row">
+                    <span className="detail-label">Tool:</span>
+                    <span className="detail-value">{permissionRequest.tool}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">Path:</span>
+                    <span className="detail-value path">{permissionRequest.path}</span>
+                  </div>
+                </div>
+                <p className="permission-hint">
+                  Choose "Accept Always" to save this permission and skip future prompts for this tool.
+                </p>
+                <div className="permission-actions">
+                  <button
+                    className="btn outlined"
+                    onClick={() => handlePermissionResponse(false, false)}
+                  >
+                    Deny
+                  </button>
+                  <button
+                    className="btn secondary"
+                    onClick={() => handlePermissionResponse(true, false)}
+                  >
+                    Accept Once
+                  </button>
+                  <button
+                    className="btn primary"
+                    onClick={() => handlePermissionResponse(true, true)}
+                  >
+                    Accept Always
+                  </button>
+                </div>
               </div>
             </div>
           </div>
