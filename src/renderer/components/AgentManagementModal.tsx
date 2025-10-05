@@ -313,20 +313,22 @@ Make the system prompt detailed and specific to the agent's purpose.`;
 
           {viewMode === 'list' && (
             <div className="agent-list-view">
-              <div className="agent-list-header">
-                <p className="agent-help-text">
-                  Agents are specialized AI assistants with specific purposes and expertise.
-                  They can have custom tools and system prompts.
-                </p>
-                <div className="agent-header-actions">
-                  <button className="btn outlined" onClick={handleGenerateWithAI}>
-                    ✨ Generate with AI
-                  </button>
-                  <button className="btn primary" onClick={handleCreate}>
-                    ➕ Create New Agent
-                  </button>
+              {agents.length > 0 && (
+                <div className="agent-list-header">
+                  <p className="agent-help-text">
+                    Agents are specialized AI assistants with specific purposes and expertise.
+                    They can have custom tools and system prompts.
+                  </p>
+                  <div className="agent-header-actions">
+                    <button className="btn outlined" onClick={handleGenerateWithAI}>
+                      ✨ Generate with AI
+                    </button>
+                    <button className="btn primary" onClick={handleCreate}>
+                      ➕ Create New Agent
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {loading ? (
                 <div className="loading">Loading agents...</div>
