@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { MultiSessionManager } from './MultiSessionManager';
@@ -26,6 +26,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
+      spellcheck: true, // Enable spell checking
     },
   });
 
@@ -36,6 +37,71 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
+
+  // Enable spell checker context menu
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    const { selectionText, misspelledWord, dictionarySuggestions, editFlags } = params;
+
+    const menuTemplate: any[] = [];
+
+    // If there's a misspelled word, show spell check options
+    if (misspelledWord && dictionarySuggestions.length > 0) {
+      menuTemplate.push({
+        label: 'Suggestions',
+        submenu: dictionarySuggestions.slice(0, 5).map(suggestion => ({
+          label: suggestion,
+          click: () => {
+            mainWindow?.webContents.replaceMisspelling(suggestion);
+          }
+        }))
+      });
+      menuTemplate.push({
+        label: 'Add to Dictionary',
+        click: () => {
+          mainWindow?.webContents.session.addWordToSpellCheckerDictionary(misspelledWord);
+        }
+      });
+      menuTemplate.push({ type: 'separator' });
+    }
+
+    // Add standard editing options
+    if (editFlags.canCut) {
+      menuTemplate.push({
+        label: 'Cut',
+        role: 'cut'
+      });
+    }
+
+    if (editFlags.canCopy) {
+      menuTemplate.push({
+        label: 'Copy',
+        role: 'copy'
+      });
+    }
+
+    if (editFlags.canPaste) {
+      menuTemplate.push({
+        label: 'Paste',
+        role: 'paste'
+      });
+    }
+
+    if (editFlags.canSelectAll) {
+      if (menuTemplate.length > 0) {
+        menuTemplate.push({ type: 'separator' });
+      }
+      menuTemplate.push({
+        label: 'Select All',
+        role: 'selectAll'
+      });
+    }
+
+    // Only show context menu if there are items
+    if (menuTemplate.length > 0) {
+      const menu = Menu.buildFromTemplate(menuTemplate);
+      menu.popup();
+    }
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;

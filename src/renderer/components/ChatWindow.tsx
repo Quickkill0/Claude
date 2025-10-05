@@ -412,6 +412,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           placeholder="Type your message to Claude Code..."
           disabled={session.isProcessing}
           rows={1}
+          spellCheck={true}
         />
 
         <input
