@@ -89,8 +89,15 @@ body {
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Segoe MDL2 Assets', 'Segoe UI Symbol', sans-serif;
+  line-height: 0;
+  padding: 0;
+  vertical-align: middle;
 }
 
 .title-bar-btn:hover {

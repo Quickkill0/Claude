@@ -12,21 +12,21 @@ const TitleBar: React.FC = () => {
           onClick={() => window.electronAPI.minimizeWindow()}
           title="Minimize"
         >
-          −
+          ─
         </button>
         <button
           className="title-bar-btn maximize"
           onClick={() => window.electronAPI.maximizeWindow()}
           title="Maximize"
         >
-          □
+          ☐
         </button>
         <button
           className="title-bar-btn close"
           onClick={() => window.electronAPI.closeWindow()}
           title="Close"
         >
-          ×
+          ✕
         </button>
       </div>
     </div>
