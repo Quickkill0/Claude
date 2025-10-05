@@ -5,11 +5,13 @@ import { MultiSessionManager } from './MultiSessionManager';
 import { PersistenceManager } from './PersistenceManager';
 import { SlashCommandParser } from './SlashCommandParser';
 import { AgentParser } from './AgentParser';
+import { PermissionServer } from './PermissionServer';
 import { IPC_CHANNELS, PermissionRequest } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let sessionManager: MultiSessionManager;
 let persistenceManager: PersistenceManager;
+let permissionServer: PermissionServer;
 let pendingPermissions: Map<string, { resolve: (allowed: boolean) => void; request: PermissionRequest }> = new Map();
 
 function createWindow() {
@@ -72,7 +74,7 @@ async function initializeManagers() {
 }
 
 // Handle permission request
-async function handlePermissionRequest(sessionId: string, tool: string, filePath: string, message: string): Promise<boolean> {
+async function handlePermissionRequest(sessionId: string, tool: string, filePath: string, message: string): Promise<{ allowed: boolean; alwaysAllow?: boolean }> {
   console.log('[PERMISSION REQUEST]', { sessionId, tool, filePath, message });
 
   // Check always-allow permissions first
@@ -87,7 +89,7 @@ async function handlePermissionRequest(sessionId: string, tool: string, filePath
   console.log('[PERMISSION] Always-allow check:', isAllowed);
 
   if (isAllowed) {
-    return true;
+    return { allowed: true, alwaysAllow: false };
   }
 
   // Send permission request to renderer and wait for response
@@ -103,13 +105,13 @@ async function handlePermissionRequest(sessionId: string, tool: string, filePath
     };
 
     console.log('[PERMISSION] Sending request to renderer:', requestId);
-    pendingPermissions.set(requestId, { resolve, request });
+    pendingPermissions.set(requestId, { resolve: (allowed: boolean) => resolve({ allowed, alwaysAllow: false }), request });
 
     if (mainWindow) {
       mainWindow.webContents.send(IPC_CHANNELS.PERMISSION_REQUEST, request);
     } else {
       console.log('[PERMISSION] No main window, denying');
-      resolve(false);
+      resolve({ allowed: false, alwaysAllow: false });
     }
   });
 }
@@ -258,6 +260,7 @@ function setupIPCHandlers() {
       }
     }
 
+    // Resolve with both allowed and alwaysAllow
     pending.resolve(allowed);
 
     // Return updated sessions so frontend can refresh
@@ -343,9 +346,21 @@ function setupIPCHandlers() {
   });
 }
 
+// Map Claude session ID to our Electron session ID
+function getSessionByClaudeId(claudeSessionId: string): string | null {
+  const sessions = sessionManager.getAllSessions();
+  const session = sessions.find(s => s.claudeSessionId === claudeSessionId);
+  return session?.id || null;
+}
+
 // App lifecycle
 app.whenReady().then(async () => {
   await initializeManagers();
+
+  // Start permission server with session ID mapper
+  permissionServer = new PermissionServer(8765, handlePermissionRequest, getSessionByClaudeId);
+  await permissionServer.start();
+
   setupIPCHandlers();
   createWindow();
 
@@ -362,9 +377,12 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('quit', () => {
+app.on('quit', async () => {
   // Cleanup
   if (sessionManager) {
     sessionManager.cleanup();
+  }
+  if (permissionServer) {
+    await permissionServer.stop();
   }
 });

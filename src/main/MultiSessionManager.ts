@@ -11,9 +11,6 @@ interface ActiveSession {
   session: Session;
   process?: cp.ChildProcess;
   rawOutput: string;
-  permissionRequestsPath?: string;
-  permissionWatcher?: fs.FSWatcher;
-  processingRequests?: Set<string>;
   parser?: MessageParser;
 }
 
@@ -23,222 +20,70 @@ export class MultiSessionManager {
 
   constructor(
     private onStreamData: (sessionId: string, data: ClaudeStreamData) => void,
-    private onPermissionRequest?: (sessionId: string, tool: string, path: string, message: string) => Promise<boolean>
+    private onPermissionRequest?: (sessionId: string, tool: string, path: string, message: string) => Promise<{ allowed: boolean; alwaysAllow?: boolean }>
   ) {}
 
   /**
-   * Initializes permission directory for a session
+   * Note: Permission handling is now done via PreToolUse hooks
+   * See .claude/hooks/permission-proxy.py for the hook implementation
+   * Permissions are handled by the PermissionServer HTTP server
    */
-  private async initializePermissionDirectory(sessionId: string): Promise<string> {
-    const userDataPath = app.getPath('userData');
-    const permissionsPath = path.join(userDataPath, 'permission-requests', sessionId);
-
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(permissionsPath)) {
-      fs.mkdirSync(permissionsPath, { recursive: true });
-    }
-
-    return permissionsPath;
-  }
 
   /**
-   * Sets up file watcher for permission requests
+   * Sets up PreToolUse hooks for permission handling in the session's working directory
    */
-  private setupPermissionWatcher(sessionId: string, permissionsPath: string): void {
+  private async setupPermissionHooks(sessionId: string): Promise<void> {
     const activeSession = this.sessions.get(sessionId);
     if (!activeSession) return;
 
-    // Clean up existing watcher if any
-    if (activeSession.permissionWatcher) {
-      activeSession.permissionWatcher.close();
+    const workingDir = activeSession.session.workingDirectory;
+    const claudeDir = path.join(workingDir, '.claude');
+    const hooksDir = path.join(claudeDir, 'hooks');
+    const settingsFile = path.join(claudeDir, 'settings.local.json');
+
+    // Create directories if they don't exist
+    if (!fs.existsSync(claudeDir)) {
+      fs.mkdirSync(claudeDir, { recursive: true });
+    }
+    if (!fs.existsSync(hooksDir)) {
+      fs.mkdirSync(hooksDir, { recursive: true });
     }
 
-    // Create default permissions.json in BOTH locations:
-    // 1. In permissions directory for MCP server
-    // 2. In working directory for Claude CLI to read directly
-    const defaultPermissions = {
-      alwaysAllow: {
-        // Minimal auto-approved list - users should add tools they trust via permission prompts
-      },
+    // Copy permission-proxy.py to session's hooks directory
+    const appHooksDir = path.join(__dirname, '../../.claude/hooks');
+    const proxyScriptSource = path.join(appHooksDir, 'permission-proxy.py');
+    const proxyScriptDest = path.join(hooksDir, 'permission-proxy.py');
+
+    if (fs.existsSync(proxyScriptSource)) {
+      fs.copyFileSync(proxyScriptSource, proxyScriptDest);
+      console.log('[HOOKS] Copied permission-proxy.py to:', proxyScriptDest);
+    }
+
+    // Read existing settings or create new
+    let settings: any = {};
+    if (fs.existsSync(settingsFile)) {
+      try {
+        settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+      } catch (error) {
+        console.error('[HOOKS] Error reading settings.local.json:', error);
+      }
+    }
+
+    // Add PreToolUse hook configuration
+    settings.hooks = {
+      PreToolUse: [{
+        matcher: "*",
+        hooks: [{
+          type: "command",
+          command: "python .claude/hooks/permission-proxy.py",
+          timeout: 300
+        }]
+      }]
     };
 
-    // Create permissions.json only if it doesn't exist yet
-    // This preserves "Accept Always" choices across multiple messages in the same session
-    const permissionsFile = path.join(permissionsPath, 'permissions.json');
-    if (!fs.existsSync(permissionsFile)) {
-      fs.writeFileSync(permissionsFile, JSON.stringify(defaultPermissions, null, 2));
-      console.log('[PERMISSIONS] Created new permissions.json in:', permissionsPath);
-    } else {
-      console.log('[PERMISSIONS] Using existing permissions.json from:', permissionsPath);
-    }
-
-    // ALSO create/sync in working directory (Claude CLI reads from here)
-    const workingDirSession = this.sessions.get(sessionId);
-    if (workingDirSession) {
-      const workingDirPermissions = path.join(workingDirSession.session.workingDirectory, '.claude', 'permissions.json');
-      const claudeDir = path.join(workingDirSession.session.workingDirectory, '.claude');
-
-      if (!fs.existsSync(claudeDir)) {
-        fs.mkdirSync(claudeDir, { recursive: true });
-      }
-
-      // Copy from session permissions to working dir to keep them in sync
-      if (fs.existsSync(permissionsFile)) {
-        const sessionPermissions = fs.readFileSync(permissionsFile, 'utf8');
-        fs.writeFileSync(workingDirPermissions, sessionPermissions);
-        console.log('[PERMISSIONS] Synced permissions to working dir:', workingDirPermissions);
-      }
-    }
-
-    // Initialize set to track in-progress requests
-    if (!activeSession.processingRequests) {
-      activeSession.processingRequests = new Set<string>();
-    }
-
-    // Watch for .request files
-    const watcher = fs.watch(permissionsPath, async (eventType, filename) => {
-      if (!filename || !filename.endsWith('.request')) return;
-
-      const requestPath = path.join(permissionsPath, filename);
-
-      // Skip if already processing this file
-      if (activeSession.processingRequests?.has(filename)) {
-        console.log('[PERMISSIONS] Skipping duplicate request:', filename);
-        return;
-      }
-
-      // Mark as processing
-      activeSession.processingRequests?.add(filename);
-
-      // Small delay to ensure file is fully written (reduced from 100ms for faster response)
-      setTimeout(async () => {
-        try {
-          if (!fs.existsSync(requestPath)) {
-            activeSession.processingRequests?.delete(filename);
-            return;
-          }
-
-          const content = fs.readFileSync(requestPath, 'utf8');
-          const request = JSON.parse(content);
-
-          console.log('[PERMISSIONS] Received request:', request);
-
-          if (this.onPermissionRequest) {
-            // Extract appropriate path/command based on tool type
-            let pathInfo = 'unknown';
-            if (request.input) {
-              if (request.input.command) {
-                pathInfo = request.input.command;
-              } else if (request.input.file_path) {
-                pathInfo = request.input.file_path;
-              } else if (request.input.pattern) {
-                pathInfo = request.input.pattern;
-              }
-            }
-
-            // Ask for permission
-            const allowed = await this.onPermissionRequest(
-              sessionId,
-              request.tool || 'unknown',
-              pathInfo,
-              `${request.tool} permission requested`
-            );
-
-            // Write response file
-            const responseFile = requestPath.replace('.request', '.response');
-            const response = {
-              id: request.id,
-              approved: allowed,
-              timestamp: new Date().toISOString(),
-            };
-
-            fs.writeFileSync(responseFile, JSON.stringify(response));
-            console.log('[PERMISSIONS] Wrote response:', allowed);
-
-            // Save to permissions.json if always allow
-            if (allowed && request.alwaysAllow) {
-              this.saveAlwaysAllowPermission(permissionsPath, request);
-            }
-
-            // Clean up request file
-            fs.unlinkSync(requestPath);
-          }
-        } catch (error) {
-          const errorInfo = ErrorHandler.handlePermissionError(error);
-          console.error('[PERMISSIONS] Error handling request:', ErrorHandler.formatError(errorInfo));
-        } finally {
-          // Remove from processing set
-          activeSession.processingRequests?.delete(filename);
-        }
-      }, 50);
-    });
-
-    activeSession.permissionWatcher = watcher;
-  }
-
-  /**
-   * Saves always-allow permission to permissions.json
-   */
-  private saveAlwaysAllowPermission(permissionsPath: string, request: any): void {
-    try {
-      const permissionsFile = path.join(permissionsPath, 'permissions.json');
-      let permissions: any = { alwaysAllow: {} };
-
-      if (fs.existsSync(permissionsFile)) {
-        permissions = JSON.parse(fs.readFileSync(permissionsFile, 'utf8'));
-      }
-
-      const toolName = request.tool;
-      if (toolName === 'Bash' && request.input?.command) {
-        // For Bash, store command patterns
-        if (!permissions.alwaysAllow[toolName]) {
-          permissions.alwaysAllow[toolName] = [];
-        }
-        if (Array.isArray(permissions.alwaysAllow[toolName])) {
-          const pattern = this.getCommandPattern(request.input.command);
-          if (!permissions.alwaysAllow[toolName].includes(pattern)) {
-            permissions.alwaysAllow[toolName].push(pattern);
-          }
-        }
-      } else {
-        // For other tools, allow all
-        permissions.alwaysAllow[toolName] = true;
-      }
-
-      fs.writeFileSync(permissionsFile, JSON.stringify(permissions, null, 2));
-      console.log(`[PERMISSIONS] Saved always-allow for ${toolName}`);
-    } catch (error) {
-      console.error('[PERMISSIONS] Error saving always-allow:', error);
-    }
-  }
-
-  /**
-   * Gets command pattern for Bash commands
-   */
-  private getCommandPattern(command: string): string {
-    const parts = command.trim().split(/\s+/);
-    if (parts.length === 0) return command;
-
-    const baseCmd = parts[0];
-    const subCmd = parts.length > 1 ? parts[1] : '';
-
-    // Common patterns
-    const patterns: [string, string, string][] = [
-      ['npm', 'install', 'npm install *'],
-      ['npm', 'i', 'npm i *'],
-      ['npm', 'run', 'npm run *'],
-      ['git', 'add', 'git add *'],
-      ['git', 'commit', 'git commit *'],
-      ['git', 'push', 'git push *'],
-    ];
-
-    for (const [cmd, sub, pattern] of patterns) {
-      if (baseCmd === cmd && (sub === '' || subCmd === sub)) {
-        return pattern;
-      }
-    }
-
-    return command;
+    // Write settings back
+    fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+    console.log('[HOOKS] Configured PreToolUse hooks in:', settingsFile);
   }
 
   /**
@@ -275,6 +120,9 @@ export class MultiSessionManager {
       this.activeSessionId = sessionId;
       session.isActive = true;
     }
+
+    // Set up permission hooks for this session
+    await this.setupPermissionHooks(sessionId);
 
     return session;
   }
@@ -318,11 +166,6 @@ export class MultiSessionManager {
       activeSession.process.kill('SIGTERM');
     }
 
-    // Close permission watcher
-    if (activeSession.permissionWatcher) {
-      activeSession.permissionWatcher.close();
-    }
-
     // Clear parser state
     if (activeSession.parser) {
       activeSession.parser.clearSession(sessionId);
@@ -351,45 +194,34 @@ export class MultiSessionManager {
 
   /**
    * Saves a permission as always-allow for a specific session
+   * With PreToolUse hooks, permissions are checked in settings.local.json
    */
   async savePermissionForSession(sessionId: string, tool: string, filePath: string, input?: any): Promise<void> {
-    const permissionsPath = await this.initializePermissionDirectory(sessionId);
-    const request = {
+    const activeSession = this.sessions.get(sessionId);
+    if (!activeSession) return;
+
+    // Update session object's sessionPermissions array for UI display
+    const permission = {
       tool,
       path: filePath,
-      input,
+      allowed: true,
+      createdAt: new Date().toISOString(),
     };
-    this.saveAlwaysAllowPermission(permissionsPath, request);
 
-    // Also update the working directory permissions.json
-    const activeSession = this.sessions.get(sessionId);
-    if (activeSession) {
-      const workingDirPermissions = path.join(activeSession.session.workingDirectory, '.claude', 'permissions.json');
-      if (fs.existsSync(workingDirPermissions)) {
-        this.saveAlwaysAllowPermission(path.join(activeSession.session.workingDirectory, '.claude'), request);
-      }
-
-      // Update session object's sessionPermissions array
-      const permission = {
-        tool,
-        path: filePath,
-        allowed: true,
-        createdAt: new Date().toISOString(),
-      };
-
-      if (!activeSession.session.sessionPermissions) {
-        activeSession.session.sessionPermissions = [];
-      }
-
-      // Check if permission already exists
-      const exists = activeSession.session.sessionPermissions.some(
-        p => p.tool === tool && p.path === filePath
-      );
-
-      if (!exists) {
-        activeSession.session.sessionPermissions.push(permission);
-      }
+    if (!activeSession.session.sessionPermissions) {
+      activeSession.session.sessionPermissions = [];
     }
+
+    // Check if permission already exists
+    const exists = activeSession.session.sessionPermissions.some(
+      p => p.tool === tool && p.path === filePath
+    );
+
+    if (!exists) {
+      activeSession.session.sessionPermissions.push(permission);
+    }
+
+    console.log(`[PERMISSIONS] Saved permission for ${tool}: ${filePath}`);
   }
 
   /**
@@ -407,97 +239,24 @@ export class MultiSessionManager {
     // Remove from session object
     activeSession.session.sessionPermissions.splice(index, 1);
 
-    // Update permissions.json files
-    const permissionsPath = await this.initializePermissionDirectory(sessionId);
-    this.removePermissionFromFile(permissionsPath, permission);
-
-    // Also update working directory permissions.json
-    const workingDirPermissions = path.join(activeSession.session.workingDirectory, '.claude');
-    if (fs.existsSync(workingDirPermissions)) {
-      this.removePermissionFromFile(workingDirPermissions, permission);
-    }
+    console.log(`[PERMISSIONS] Removed permission for ${permission.tool}`);
   }
 
   /**
-   * Removes a permission from permissions.json file
-   */
-  private removePermissionFromFile(permissionsDir: string, permission: import('../shared/types').PermissionRule): void {
-    try {
-      const permissionsFile = path.join(permissionsDir, 'permissions.json');
-      if (!fs.existsSync(permissionsFile)) return;
-
-      let permissions: any = JSON.parse(fs.readFileSync(permissionsFile, 'utf8'));
-
-      if (!permissions.alwaysAllow) return;
-
-      const toolName = permission.tool;
-
-      if (toolName === 'Bash' && Array.isArray(permissions.alwaysAllow[toolName])) {
-        // For Bash, remove the specific command pattern
-        const pattern = permission.path || '';
-        permissions.alwaysAllow[toolName] = permissions.alwaysAllow[toolName].filter(
-          (p: string) => p !== pattern
-        );
-
-        // Remove the tool entry if no patterns left
-        if (permissions.alwaysAllow[toolName].length === 0) {
-          delete permissions.alwaysAllow[toolName];
-        }
-      } else {
-        // For other tools, remove the entire tool entry
-        delete permissions.alwaysAllow[toolName];
-      }
-
-      fs.writeFileSync(permissionsFile, JSON.stringify(permissions, null, 2));
-      console.log(`[PERMISSIONS] Removed permission for ${toolName}`);
-    } catch (error) {
-      console.error('[PERMISSIONS] Error removing permission:', error);
-    }
-  }
-
-  /**
-   * Loads permissions from permissions.json into session object
+   * Loads permissions into session object (placeholder for now)
+   * With PreToolUse hooks, permissions are defined in settings.local.json
    */
   async loadSessionPermissions(sessionId: string): Promise<void> {
     const activeSession = this.sessions.get(sessionId);
     if (!activeSession) return;
 
-    try {
-      const permissionsPath = await this.initializePermissionDirectory(sessionId);
-      const permissionsFile = path.join(permissionsPath, 'permissions.json');
-
-      if (!fs.existsSync(permissionsFile)) return;
-
-      const permissions: any = JSON.parse(fs.readFileSync(permissionsFile, 'utf8'));
-
-      if (!permissions.alwaysAllow) return;
-
+    // Initialize empty permissions array
+    // Permissions are now managed through settings.local.json
+    if (!activeSession.session.sessionPermissions) {
       activeSession.session.sessionPermissions = [];
-
-      // Convert permissions.json format to PermissionRule array
-      for (const [tool, value] of Object.entries(permissions.alwaysAllow)) {
-        if (Array.isArray(value)) {
-          // Bash commands
-          for (const pattern of value) {
-            activeSession.session.sessionPermissions.push({
-              tool,
-              path: pattern,
-              allowed: true,
-              createdAt: new Date().toISOString(),
-            });
-          }
-        } else if (value === true) {
-          // Other tools
-          activeSession.session.sessionPermissions.push({
-            tool,
-            allowed: true,
-            createdAt: new Date().toISOString(),
-          });
-        }
-      }
-    } catch (error) {
-      console.error('[PERMISSIONS] Error loading session permissions:', error);
     }
+
+    console.log(`[PERMISSIONS] Initialized permissions for session ${sessionId}`);
   }
 
   /**
@@ -554,17 +313,16 @@ export class MultiSessionManager {
       message = `IMPORTANT: You are in planning mode. Only create a plan - do NOT write any code or make any changes. Just analyze and plan the approach.\n\n${message}`;
     }
 
-    // Initialize permission directory
-    const permissionsPath = await this.initializePermissionDirectory(sessionId);
-    activeSession.permissionRequestsPath = permissionsPath;
-    this.setupPermissionWatcher(sessionId, permissionsPath);
+    // Set up permission hooks for this session
+    await this.setupPermissionHooks(sessionId);
 
-    // Build Claude args with permissions path
-    const args = this.buildClaudeArgs(session, config, permissionsPath, sessionId);
+    // Build Claude args
+    const args = this.buildClaudeArgs(session, config, undefined, sessionId);
 
     console.log('[CLAUDE ARGS]:', args.join(' '));
 
-    // Create Claude process with permissions directory in env
+    // Create Claude process
+    // Permissions are handled by PreToolUse hooks via .claude/hooks/permission-proxy.py
     const claudeProcess = cp.spawn('claude', args, {
       shell: true,
       cwd: session.workingDirectory,
@@ -574,8 +332,6 @@ export class MultiSessionManager {
         FORCE_COLOR: '0',
         NO_COLOR: '1',
         NODE_NO_READLINE: '1', // Disable readline buffering
-        CLAUDE_PERMISSIONS_PATH: permissionsPath, // Claude CLI reads this!
-        PERMISSIONS_DIR: permissionsPath, // Pass to MCP server
       },
     });
 
@@ -759,12 +515,6 @@ export class MultiSessionManager {
     activeSession.process = undefined;
     activeSession.session.isProcessing = false;
 
-    // Close permission watcher
-    if (activeSession.permissionWatcher) {
-      activeSession.permissionWatcher.close();
-      activeSession.permissionWatcher = undefined;
-    }
-
     // Clear parser state
     if (activeSession.parser) {
       activeSession.parser.clearSession(sessionId);
@@ -887,50 +637,12 @@ export class MultiSessionManager {
       args.push('--resume', session.claudeSessionId);
     }
 
-    // YOLO mode
+    // YOLO mode (skip all permissions)
     if (config?.yoloMode) {
       args.push('--dangerously-skip-permissions');
-    } else if (permissionsPath) {
-      // Use MCP config for permissions if not in YOLO mode
-      const appDir = path.join(__dirname, '../..');
-      const mcpConfigPath = config?.mcpConfigPath || path.join(appDir, 'mcp-config.json');
-
-      if (fs.existsSync(mcpConfigPath)) {
-        // Read template config
-        const templateConfig = JSON.parse(fs.readFileSync(mcpConfigPath, 'utf8'));
-
-        // Replace variables in the config object
-        const processedConfig = JSON.parse(
-          JSON.stringify(templateConfig)
-            .replace(/\{\{APP_DIR\}\}/g, appDir.replace(/\\/g, '\\\\'))
-            .replace(/\{\{PERMISSIONS_DIR\}\}/g, permissionsPath.replace(/\\/g, '\\\\'))
-        );
-
-        // Write processed config
-        const tempConfigPath = path.join(app.getPath('temp'), `mcp-config-${sessionId || 'default'}.json`);
-        fs.writeFileSync(tempConfigPath, JSON.stringify(processedConfig, null, 2));
-
-        args.push('--mcp-config', tempConfigPath);
-        // Block built-in tools that need permission checking - route through MCP
-        args.push('--disallowedTools', 'Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'NotebookEdit', 'WebFetch');
-        // Allow MCP permission-wrapped tools + let built-ins handle safe tools
-        args.push('--allowedTools',
-          'mcp__permissions__Read',
-          'mcp__permissions__Write',
-          'mcp__permissions__Edit',
-          'mcp__permissions__Bash',
-          'mcp__permissions__Glob',
-          'mcp__permissions__Grep',
-          'mcp__permissions__NotebookEdit',
-          'mcp__permissions__WebFetch'
-        );
-        console.log('[MCP] Using config:', tempConfigPath);
-        console.log('[MCP] Permissions dir:', permissionsPath);
-        console.log('[MCP] Blocking built-in tools, routing through MCP permission wrappers');
-      } else {
-        console.log('[MCP] Config not found:', mcpConfigPath);
-      }
     }
+    // With PreToolUse hooks, permissions are handled by .claude/hooks/permission-proxy.py
+    // No need for MCP config - hooks intercept tool calls automatically
 
     return args;
   }
@@ -942,9 +654,6 @@ export class MultiSessionManager {
     for (const [sessionId, activeSession] of this.sessions) {
       if (activeSession.process) {
         activeSession.process.kill('SIGTERM');
-      }
-      if (activeSession.permissionWatcher) {
-        activeSession.permissionWatcher.close();
       }
       if (activeSession.parser) {
         activeSession.parser.clearSession(sessionId);
