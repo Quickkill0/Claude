@@ -1047,6 +1047,8 @@ body {
   word-wrap: break-word;
   overflow-wrap: break-word;
   letter-spacing: 0.2px;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Message Type Bubble Backgrounds */
@@ -3521,6 +3523,35 @@ body {
   transform: translateY(0);
 }
 
+/* Message Expand Button */
+.expand-message-btn {
+  margin-top: 10px;
+  align-self: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.expand-message-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  transform: translateY(-1px);
+}
+
+.expand-message-btn:active {
+  transform: translateY(0);
+}
+
 /* File Listing Result Display */
 .file-listing-result {
   display: flex;
@@ -3878,6 +3909,56 @@ body {
   font-family: 'Consolas', 'Monaco', monospace;
 }
 
+/* WebSearch Result Display */
+.web-search-result {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.web-search-result p {
+  margin: 8px 0;
+}
+
+.web-search-result strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.web-search-result ol,
+.web-search-result ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.web-search-result li {
+  margin: 4px 0;
+}
+
+.web-search-result .web-search-link {
+  color: var(--accent-blue);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.web-search-result .web-search-link:hover {
+  color: var(--accent-blue-hover, #4a9eff);
+  border-bottom-color: var(--accent-blue);
+}
+
+.web-search-result .web-search-link:visited {
+  color: #8b5cf6;
+}
+
+.web-search-result .web-search-link::after {
+  content: "↗";
+  font-size: 12px;
+  opacity: 0.6;
+}
+
 /* WebFetch Tool Display */
 .web-fetch-tool-content {
   display: flex;
@@ -4169,6 +4250,7 @@ body {
 .file-path-button:focus,
 .file-chip:focus,
 .expand-button:focus,
+.expand-message-btn:focus,
 .copy-button:focus,
 .copy-code-button:focus,
 .message:focus-within {
@@ -4191,6 +4273,7 @@ button:focus-visible {
   .file-path-button,
   .file-chip,
   .expand-button,
+  .expand-message-btn,
   .copy-btn,
   .copy-code-button,
   .code-block,

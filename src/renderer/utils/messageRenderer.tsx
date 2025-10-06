@@ -113,6 +113,14 @@ export class MessageRenderer {
     const { file_path, old_string, new_string, replace_all } = editData;
     const { oldLines, newLines } = formatDiffLines(old_string, new_string);
 
+    // Check if content should be truncated
+    const maxLines = 5;
+    const shouldTruncate = oldLines.length > maxLines || newLines.length > maxLines;
+    const isExpanded = config.expandedContent?.has(`edit-${messageId}`) ?? false;
+
+    const displayOldLines = shouldTruncate && !isExpanded ? oldLines.slice(0, maxLines) : oldLines;
+    const displayNewLines = shouldTruncate && !isExpanded ? newLines.slice(0, maxLines) : newLines;
+
     return (
       <div className="edit-tool-content">
         <div className="edit-file-path">
@@ -131,7 +139,7 @@ export class MessageRenderer {
                 {config.copiedCode === `edit-old-${messageId}` ? '✓' : '📋'}
               </button>
             </div>
-            <pre className="diff-content">{oldLines.join('\n')}</pre>
+            <pre className="diff-content">{displayOldLines.join('\n')}</pre>
           </div>
           <div className="diff-section added">
             <div className="diff-header">
@@ -144,9 +152,17 @@ export class MessageRenderer {
                 {config.copiedCode === `edit-new-${messageId}` ? '✓' : '📋'}
               </button>
             </div>
-            <pre className="diff-content">{newLines.join('\n')}</pre>
+            <pre className="diff-content">{displayNewLines.join('\n')}</pre>
           </div>
         </div>
+        {shouldTruncate && (
+          <button
+            className="expand-message-btn"
+            onClick={() => config.onToggleExpanded?.(`edit-${messageId}`)}
+          >
+            {isExpanded ? '▲ Show Less' : '▼ Show More'}
+          </button>
+        )}
       </div>
     );
   }
@@ -361,6 +377,16 @@ export class MessageRenderer {
       return <pre className="tool-input-content">{content}</pre>;
     }
 
+    // Check if content should be truncated
+    const maxLines = 5;
+    const lines = planData.plan.split('\n');
+    const shouldTruncate = lines.length > maxLines;
+    const isExpanded = config.expandedContent?.has(`plan-${messageId}`) ?? false;
+
+    const displayContent = shouldTruncate && !isExpanded
+      ? lines.slice(0, maxLines).join('\n')
+      : planData.plan;
+
     return (
       <div className="exit-plan-mode-content">
         <div className="plan-summary">
@@ -368,8 +394,16 @@ export class MessageRenderer {
           <span className="plan-label">Plan Ready</span>
         </div>
         <div className="plan-content">
-          <ReactMarkdown>{planData.plan}</ReactMarkdown>
+          <ReactMarkdown>{displayContent}</ReactMarkdown>
         </div>
+        {shouldTruncate && (
+          <button
+            className="expand-message-btn"
+            onClick={() => config.onToggleExpanded?.(`plan-${messageId}`)}
+          >
+            {isExpanded ? '▲ Show Less' : '▼ Show More'}
+          </button>
+        )}
       </div>
     );
   }
@@ -806,6 +840,49 @@ export class MessageRenderer {
   }
 
   /**
+   * Parse WebSearch result content and convert to readable markdown
+   */
+  static parseWebSearchResult(content: string): string {
+    try {
+      // Try to extract query and links from the content
+      const queryMatch = content.match(/Web search results for query:\s*"([^"]+)"/);
+      const linksMatch = content.match(/Links:\s*(\[.*?\])/s);
+
+      if (!linksMatch) return content;
+
+      const links = JSON.parse(linksMatch[1]);
+
+      // Extract any additional text (not the query or links)
+      let additionalText = content
+        .replace(/Web search results for query:\s*"[^"]+"\s*/, '')
+        .replace(/Links:\s*\[.*?\]/s, '')
+        .trim();
+
+      // Build markdown output
+      let markdown = '';
+
+      if (queryMatch) {
+        markdown += `**Search Results for:** "${queryMatch[1]}"\n\n`;
+      }
+
+      if (Array.isArray(links) && links.length > 0) {
+        markdown += `**Found ${links.length} result${links.length !== 1 ? 's' : ''}:**\n\n`;
+        links.forEach((link: { title: string; url: string }, idx: number) => {
+          markdown += `${idx + 1}. [${link.title}](${link.url})\n`;
+        });
+      }
+
+      if (additionalText) {
+        markdown += `\n${additionalText}`;
+      }
+
+      return markdown;
+    } catch (e) {
+      return content;
+    }
+  }
+
+  /**
    * Render tool result content with improved parsing
    */
   static renderToolResult(
@@ -815,6 +892,34 @@ export class MessageRenderer {
     messageId?: string,
     config?: RenderConfig
   ): JSX.Element {
+    // Handle WebSearch results specifically
+    if (toolName === 'WebSearch') {
+      const parsedMarkdown = this.parseWebSearchResult(content);
+      return (
+        <div className="web-search-result">
+          <ReactMarkdown
+            components={{
+              a({ node, children, href, ...props }) {
+                return (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="web-search-link"
+                    {...props}
+                  >
+                    {children}
+                  </a>
+                );
+              },
+            }}
+          >
+            {parsedMarkdown}
+          </ReactMarkdown>
+        </div>
+      );
+    }
+
     if (isJson) {
       return (
         <SyntaxHighlighter

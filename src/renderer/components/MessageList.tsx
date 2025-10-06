@@ -17,6 +17,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   const [collapsedTools, setCollapsedTools] = useState<Set<string>>(new Set());
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const { respondToPermission } = useSessionStore();
 
   const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
@@ -64,7 +65,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         scrollToBottom('smooth');
       });
     }
-  }, [messages, collapsedThinking, collapsedTools, expandedContent]);
+  }, [messages, collapsedThinking, collapsedTools, expandedContent, expandedMessages]);
 
   const toggleThinking = (id: string) => {
     const newCollapsed = new Set(collapsedThinking);
@@ -119,6 +120,27 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
       newExpanded.add(id);
     }
     setExpandedContent(newExpanded);
+  };
+
+  const toggleMessageExpanded = (id: string) => {
+    const newExpanded = new Set(expandedMessages);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedMessages(newExpanded);
+  };
+
+  const shouldTruncateContent = (content: string): boolean => {
+    const lines = content.split('\n');
+    return lines.length > 5;
+  };
+
+  const truncateContent = (content: string, maxLines: number = 5): string => {
+    const lines = content.split('\n');
+    if (lines.length <= maxLines) return content;
+    return lines.slice(0, maxLines).join('\n');
   };
 
   const openFile = async (path: string, lineNumber?: number) => {
@@ -189,6 +211,10 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         );
 
       case 'assistant':
+        const isTruncatable = shouldTruncateContent(content);
+        const isMessageExpanded = expandedMessages.has(message.id);
+        const displayContent = isTruncatable && !isMessageExpanded ? truncateContent(content) : content;
+
         return (
           <div key={message.id} className="message message-claude">
             <div className="message-avatar">
@@ -213,7 +239,15 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                 </button>
               </div>
               <div className="message-content">
-                {MessageRenderer.renderEnhancedMarkdown(content, message.id, renderConfig)}
+                {MessageRenderer.renderEnhancedMarkdown(displayContent, message.id, renderConfig)}
+                {isTruncatable && (
+                  <button
+                    className="expand-message-btn"
+                    onClick={() => toggleMessageExpanded(message.id)}
+                  >
+                    {isMessageExpanded ? '▲ Show Less' : '▼ Show More'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -300,6 +334,11 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         // Format tool result content
         const { formattedContent, isJson } = MessageRenderer.formatToolResultContent(content);
 
+        // Check if content should be truncated
+        const isResultTruncatable = shouldTruncateContent(formattedContent);
+        const isResultExpanded = expandedMessages.has(`result-${message.id}`);
+        const displayResultContent = isResultTruncatable && !isResultExpanded ? truncateContent(formattedContent) : formattedContent;
+
         return (
           <div
             key={message.id}
@@ -332,7 +371,15 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
               </div>
               {!isResultCollapsed && (
                 <div className="message-content">
-                  {MessageRenderer.renderToolResult(formattedContent, isJson, resultToolName, message.id, renderConfig)}
+                  {MessageRenderer.renderToolResult(displayResultContent, isJson, resultToolName, message.id, renderConfig)}
+                  {isResultTruncatable && (
+                    <button
+                      className="expand-message-btn"
+                      onClick={() => toggleMessageExpanded(`result-${message.id}`)}
+                    >
+                      {isResultExpanded ? '▲ Show Less' : '▼ Show More'}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -340,6 +387,10 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         );
 
       case 'system':
+        const isSystemTruncatable = shouldTruncateContent(content);
+        const isSystemExpanded = expandedMessages.has(message.id);
+        const displaySystemContent = isSystemTruncatable && !isSystemExpanded ? truncateContent(content) : content;
+
         return (
           <div key={message.id} className="message message-system">
             <div className="message-avatar">
@@ -356,13 +407,25 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                 <span className="message-timestamp">{formatTimestamp(message.timestamp)}</span>
               </div>
               <div className="message-content">
-                <div className="message-text">{content}</div>
+                <div className="message-text">{displaySystemContent}</div>
+                {isSystemTruncatable && (
+                  <button
+                    className="expand-message-btn"
+                    onClick={() => toggleMessageExpanded(message.id)}
+                  >
+                    {isSystemExpanded ? '▲ Show Less' : '▼ Show More'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
         );
 
       case 'error':
+        const isErrorTruncatable = shouldTruncateContent(content);
+        const isErrorExpanded = expandedMessages.has(message.id);
+        const displayErrorContent = isErrorTruncatable && !isErrorExpanded ? truncateContent(content) : content;
+
         return (
           <div key={message.id} className="message message-error">
             <div className="message-avatar">
@@ -386,7 +449,15 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                 </button>
               </div>
               <div className="message-content">
-                <div className="message-text">{content}</div>
+                <div className="message-text">{displayErrorContent}</div>
+                {isErrorTruncatable && (
+                  <button
+                    className="expand-message-btn"
+                    onClick={() => toggleMessageExpanded(message.id)}
+                  >
+                    {isErrorExpanded ? '▲ Show Less' : '▼ Show More'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
