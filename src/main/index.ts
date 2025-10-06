@@ -5,6 +5,7 @@ import { MultiSessionManager } from './MultiSessionManager';
 import { PersistenceManager } from './PersistenceManager';
 import { SlashCommandParser } from './SlashCommandParser';
 import { AgentParser } from './AgentParser';
+import { MCPParser } from './MCPParser';
 import { PermissionServer } from './PermissionServer';
 import { IPC_CHANNELS, PermissionRequest } from '../shared/types';
 
@@ -412,6 +413,48 @@ function setupIPCHandlers() {
 
   ipcMain.handle(IPC_CHANNELS.DELETE_AGENT, async (_, filePath: string) => {
     return await AgentParser.deleteAgent(filePath);
+  });
+
+  // MCPs
+  ipcMain.handle(IPC_CHANNELS.GET_MCPS, async (_, sessionId: string) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      console.log('Session not found:', sessionId);
+      return [];
+    }
+
+    return await MCPParser.getAvailableMCPs(session.workingDirectory);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.CREATE_MCP, async (_, { sessionId, mcp, scope }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    return await MCPParser.createMCP(session.workingDirectory, mcp, scope);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.UPDATE_MCP, async (_, { sessionId, oldName, mcp }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    return await MCPParser.updateMCP(session.workingDirectory, oldName, mcp);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.DELETE_MCP, async (_, { sessionId, name, scope }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    return await MCPParser.deleteMCP(session.workingDirectory, name, scope);
   });
 }
 

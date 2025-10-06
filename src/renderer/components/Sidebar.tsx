@@ -4,6 +4,7 @@ import ConfirmDialog from './ConfirmDialog';
 import SettingsModal from './SettingsModal';
 import SessionSettingsModal from './SessionSettingsModal';
 import AgentManagementModal from './AgentManagementModal';
+import MCPManagementModal from './MCPManagementModal';
 
 const Sidebar: React.FC = () => {
   const { sessions, activeSessionId, createSession, switchSession, deleteSession, isSidebarOpen, toggleSidebar, toggleYoloMode, updateSessionModel, removeSessionPermission } = useSessionStore();
@@ -11,6 +12,7 @@ const Sidebar: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [sessionSettingsId, setSessionSettingsId] = useState<string | null>(null);
   const [showAgents, setShowAgents] = useState(false);
+  const [showMCPs, setShowMCPs] = useState(false);
 
   // Render collapsed sidebar when closed
   if (!isSidebarOpen) {
@@ -53,6 +55,13 @@ const Sidebar: React.FC = () => {
           <AgentManagementModal
             sessionId={activeSessionId}
             onClose={() => setShowAgents(false)}
+          />
+        )}
+
+        {showMCPs && activeSessionId && (
+          <MCPManagementModal
+            sessionId={activeSessionId}
+            onClose={() => setShowMCPs(false)}
           />
         )}
 
@@ -143,6 +152,13 @@ const Sidebar: React.FC = () => {
             🤖
           </button>
           <button
+            className="btn-icon mcps"
+            onClick={() => setShowMCPs(true)}
+            title="MCPs"
+          >
+            🔌
+          </button>
+          <button
             className="btn-icon settings"
             onClick={() => setShowSettings(true)}
             title="Settings"
@@ -181,6 +197,13 @@ const Sidebar: React.FC = () => {
         <AgentManagementModal
           sessionId={activeSessionId}
           onClose={() => setShowAgents(false)}
+        />
+      )}
+
+      {showMCPs && activeSessionId && (
+        <MCPManagementModal
+          sessionId={activeSessionId}
+          onClose={() => setShowMCPs(false)}
         />
       )}
 

@@ -28,6 +28,10 @@ const IPC_CHANNELS = {
   CREATE_AGENT: 'agents:create',
   UPDATE_AGENT: 'agents:update',
   DELETE_AGENT: 'agents:delete',
+  GET_MCPS: 'mcps:get',
+  CREATE_MCP: 'mcps:create',
+  UPDATE_MCP: 'mcps:update',
+  DELETE_MCP: 'mcps:delete',
 } as const;
 
 // Expose protected methods that allow the renderer process to use
@@ -85,4 +89,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.CREATE_AGENT, { sessionId, agent, scope }),
   updateAgent: (agent: any) => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_AGENT, agent),
   deleteAgent: (filePath: string) => ipcRenderer.invoke(IPC_CHANNELS.DELETE_AGENT, filePath),
+
+  // MCPs
+  getMCPs: (sessionId: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_MCPS, sessionId),
+  createMCP: (sessionId: string, mcp: any, scope: 'project' | 'personal') =>
+    ipcRenderer.invoke(IPC_CHANNELS.CREATE_MCP, { sessionId, mcp, scope }),
+  updateMCP: (sessionId: string, oldName: string, mcp: any) =>
+    ipcRenderer.invoke(IPC_CHANNELS.UPDATE_MCP, { sessionId, oldName, mcp }),
+  deleteMCP: (sessionId: string, name: string, scope: 'project' | 'personal') =>
+    ipcRenderer.invoke(IPC_CHANNELS.DELETE_MCP, { sessionId, name, scope }),
 });

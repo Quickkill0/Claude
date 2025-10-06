@@ -153,6 +153,20 @@ export interface Agent {
   filePath: string;
 }
 
+export type MCPServerType = 'stdio' | 'http' | 'sse';
+export type MCPScope = 'project' | 'personal';
+
+export interface MCPServer {
+  name: string;
+  type: MCPServerType;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  source: MCPScope;
+}
+
 // IPC Channel names
 export const IPC_CHANNELS = {
   // Session management
@@ -200,6 +214,12 @@ export const IPC_CHANNELS = {
   CREATE_AGENT: 'agents:create',
   UPDATE_AGENT: 'agents:update',
   DELETE_AGENT: 'agents:delete',
+
+  // MCPs
+  GET_MCPS: 'mcps:get',
+  CREATE_MCP: 'mcps:create',
+  UPDATE_MCP: 'mcps:update',
+  DELETE_MCP: 'mcps:delete',
 } as const;
 
 // Window API type for TypeScript
@@ -232,6 +252,10 @@ declare global {
       createAgent: (sessionId: string, agent: Omit<Agent, 'filePath'>, scope: 'project' | 'personal') => Promise<string>;
       updateAgent: (agent: Agent) => Promise<void>;
       deleteAgent: (filePath: string) => Promise<void>;
+      getMCPs: (sessionId: string) => Promise<MCPServer[]>;
+      createMCP: (sessionId: string, mcp: Omit<MCPServer, 'source'>, scope: MCPScope) => Promise<void>;
+      updateMCP: (sessionId: string, oldName: string, mcp: MCPServer) => Promise<void>;
+      deleteMCP: (sessionId: string, name: string, scope: MCPScope) => Promise<void>;
     };
   }
 }
