@@ -26,6 +26,7 @@ interface SessionStore {
   toggleYoloMode: (sessionId: string) => void;
   toggleThinkingMode: (sessionId: string) => void;
   togglePlanMode: (sessionId: string) => void;
+  toggleNoCodeMode: (sessionId: string) => void;
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => void;
   respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) => Promise<void>;
   removeSessionPermission: (sessionId: string, index: number) => Promise<void>;
@@ -185,7 +186,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ...(updatedSession?.planMode && { planMode: true }),
       };
 
-      await window.electronAPI.sendMessage(sessionId, message, Object.keys(config).length > 0 ? config : undefined);
+      // Prepend no code mode instructions if active
+      let messageToSend = message;
+      if (updatedSession?.noCodeMode) {
+        messageToSend = 'DO NOT CODE ANYTHING. You are in chat-only mode. If the user asks you to create, edit, write, or modify any code or files, kindly explain that you cannot perform coding actions in this mode, but you can describe the steps needed or explain how to accomplish their goal. User message: ' + message;
+      }
+
+      await window.electronAPI.sendMessage(sessionId, messageToSend, Object.keys(config).length > 0 ? config : undefined);
     } catch (error) {
       console.error('Failed to send message:', error);
     }
@@ -538,6 +545,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     // Save updated session metadata to backend
     await window.electronAPI.updateSession(sessionId, { planMode: newPlanMode });
+  },
+
+  toggleNoCodeMode: async (sessionId: string) => {
+    const session = get().sessions.find(s => s.id === sessionId);
+    const newNoCodeMode = !session?.noCodeMode;
+
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId ? { ...s, noCodeMode: newNoCodeMode } : s
+      ),
+    }));
+
+    // Save updated session metadata to backend
+    await window.electronAPI.updateSession(sessionId, { noCodeMode: newNoCodeMode });
   },
 
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => {

@@ -16,7 +16,7 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
-  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadConversation, toggleThinkingMode, togglePlanMode } = useSessionStore();
+  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadConversation, toggleThinkingMode, togglePlanMode, toggleNoCodeMode } = useSessionStore();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -302,6 +302,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
     togglePlanMode(session.id);
   };
 
+  const handleToggleNoCode = () => {
+    toggleNoCodeMode(session.id);
+  };
+
   // Load slash commands when session changes
   useEffect(() => {
     const loadCommands = async () => {
@@ -450,6 +454,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
             title={session.planMode ? 'Plan mode: ON' : 'Plan mode: OFF'}
           >
             📋
+          </button>
+          <button
+            className={`btn-nocode-toggle ${session.noCodeMode ? 'active' : ''}`}
+            onClick={handleToggleNoCode}
+            disabled={session.isProcessing}
+            title={session.noCodeMode ? 'No code mode: ON' : 'No code mode: OFF'}
+          >
+            💬
           </button>
           <div className="button-bar-spacer"></div>
           <button
