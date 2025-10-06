@@ -536,12 +536,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
       // Remove the permission request message and update pending tool messages
       const messages = new Map(get().messages);
+      let deniedSessionId: string | null = null;
+
       for (const [sessionId, sessionMessages] of messages.entries()) {
         let updated = false;
         const updatedMessages = sessionMessages.map(m => {
           // Remove permission request message
           if (m.id === requestId) {
             updated = true;
+            // If denied, track the sessionId to stop the process
+            if (!allowed && m.metadata?.permissionRequest) {
+              deniedSessionId = m.metadata.permissionRequest.sessionId;
+            }
             return null;
           }
           // Update pending tool messages to show granted/denied status
@@ -566,6 +572,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           window.electronAPI.saveSessionMessages(sessionId, updatedMessages);
           break;
         }
+      }
+
+      // If permission was denied, automatically stop the process
+      if (!allowed && deniedSessionId) {
+        await window.electronAPI.stopProcess(deniedSessionId);
       }
     } catch (error) {
       console.error('Failed to respond to permission:', error);
