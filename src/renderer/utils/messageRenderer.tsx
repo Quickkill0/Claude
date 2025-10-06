@@ -6,8 +6,14 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { Message } from '../../shared/types';
+
+// Get the current syntax highlighting theme based on the app theme
+const getSyntaxTheme = () => {
+  const theme = document.body.getAttribute('data-theme');
+  return theme === 'light' ? vs : vscDarkPlus;
+};
 import {
   extractFileReferences,
   parseTodoWrite,
@@ -185,7 +191,7 @@ export class MessageRenderer {
             </button>
           </div>
           <SyntaxHighlighter
-            style={vscDarkPlus}
+            style={getSyntaxTheme()}
             language={fileExtension}
             showLineNumbers
             PreTag="div"
@@ -692,7 +698,7 @@ export class MessageRenderer {
                   </button>
                 </div>
                 <SyntaxHighlighter
-                  style={vscDarkPlus}
+                  style={getSyntaxTheme()}
                   language={match[1]}
                   PreTag="div"
                   {...props}
@@ -804,7 +810,7 @@ export class MessageRenderer {
     if (isJson) {
       return (
         <SyntaxHighlighter
-          style={vscDarkPlus}
+          style={getSyntaxTheme()}
           language="json"
           PreTag="div"
           customStyle={{ margin: 0, borderRadius: '4px', fontSize: '12px' }}
@@ -825,7 +831,7 @@ export class MessageRenderer {
 
       return (
         <SyntaxHighlighter
-          style={vscDarkPlus}
+          style={getSyntaxTheme()}
           language={lineNumberInfo.language || 'text'}
           PreTag="div"
           customStyle={{ margin: 0, borderRadius: '4px', fontSize: '12px' }}
@@ -869,7 +875,7 @@ export class MessageRenderer {
             const codeString = String(children).replace(/\n$/, '');
             return !inline && match ? (
               <SyntaxHighlighter
-                style={vscDarkPlus}
+                style={getSyntaxTheme()}
                 language={match[1]}
                 PreTag="div"
                 customStyle={{ margin: 0, fontSize: '12px' }}

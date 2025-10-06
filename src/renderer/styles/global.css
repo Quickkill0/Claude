@@ -9,6 +9,7 @@
   --bg-secondary: #252526;
   --bg-tertiary: #2d2d30;
   --bg-hover: #3e3e42;
+  --bg-hover-intense: #4e4e52;
   --border-color: #3e3e42;
   --text-primary: #cccccc;
   --text-secondary: #858585;
@@ -20,6 +21,37 @@
   --message-system-bg: #3e3e42;
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   --sidebar-width: 300px;
+  --bg-overlay: rgba(30, 30, 30, 0.6);
+  --bg-overlay-heavy: rgba(30, 30, 30, 0.9);
+  --bg-gradient-end: rgba(30, 30, 30, 0.98);
+  --hover-overlay: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb: #5e5e62;
+  --scrollbar-thumb-hover: #4e4e52;
+}
+
+/* Light Theme */
+body[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f3f3f3;
+  --bg-tertiary: #e8e8e8;
+  --bg-hover: #e0e0e0;
+  --bg-hover-intense: #d5d5d5;
+  --border-color: #d0d0d0;
+  --text-primary: #1e1e1e;
+  --text-secondary: #6e6e6e;
+  --accent-blue: #007acc;
+  --accent-green: #16825d;
+  --accent-red: #d13438;
+  --message-user-bg: #e3f2fd;
+  --message-assistant-bg: #f5f5f5;
+  --message-system-bg: #eeeeee;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --bg-overlay: rgba(255, 255, 255, 0.8);
+  --bg-overlay-heavy: rgba(255, 255, 255, 0.95);
+  --bg-gradient-end: rgba(255, 255, 255, 0.98);
+  --hover-overlay: rgba(0, 0, 0, 0.05);
+  --scrollbar-thumb: #b0b0b0;
+  --scrollbar-thumb-hover: #909090;
 }
 
 body {
@@ -534,7 +566,7 @@ body {
   width: 24px;
   height: 24px;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(30, 30, 30, 0.6);
+  background: var(--bg-overlay);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--text-secondary);
@@ -692,7 +724,7 @@ body {
   gap: 24px;
   position: relative;
   scroll-behavior: smooth;
-  background: linear-gradient(180deg, var(--bg-primary) 0%, rgba(30, 30, 30, 0.98) 100%);
+  background: var(--bg-primary);
 }
 
 .message-list::before {
@@ -926,28 +958,29 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
 .message-timestamp {
   font-size: 10px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-secondary);
+  opacity: 0.5;
   margin-left: auto;
   margin-right: 8px;
   letter-spacing: 0.2px;
-  transition: color 0.2s ease;
+  transition: opacity 0.2s ease;
 }
 
 .message:hover .message-timestamp {
-  color: rgba(255, 255, 255, 0.5);
+  opacity: 0.7;
 }
 
 .copy-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.6);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 8px;
@@ -984,9 +1017,9 @@ body {
 }
 
 .copy-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.25);
-  color: white;
+  background: var(--hover-overlay);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
   transform: scale(1.05);
 }
 
@@ -1009,7 +1042,7 @@ body {
 .message-content {
   font-size: 14px;
   line-height: 1.65;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   width: 100%;
   word-wrap: break-word;
   overflow-wrap: break-word;
@@ -1176,7 +1209,7 @@ body {
 }
 
 .message-system .message-content {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   font-style: italic;
   font-size: 13px;
 }
@@ -1220,9 +1253,7 @@ body {
 
 /* Code Blocks - Modern Enhanced Design */
 .code-block {
-  background: linear-gradient(135deg,
-    rgba(30, 30, 35, 0.98) 0%,
-    rgba(20, 20, 25, 0.95) 100%);
+  background: var(--bg-tertiary);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1232,20 +1263,18 @@ body {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.6;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 2px 6px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow);
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .code-block:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 4px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow);
   border-color: rgba(59, 130, 246, 0.4);
 }
 
 .code-lang {
-  background: linear-gradient(135deg,
-    rgba(40, 42, 54, 0.98) 0%,
-    rgba(35, 37, 48, 0.95) 100%);
+  background: var(--bg-hover);
   backdrop-filter: blur(10px);
   padding: 10px 16px;
   font-size: 11px;
@@ -1299,7 +1328,7 @@ body {
 }
 
 .code-block::-webkit-scrollbar-thumb:hover {
-  background: #5e5e62;
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Chat Input */
@@ -1385,7 +1414,7 @@ body {
 
 .btn-stop-status {
   padding: 6px 12px;
-  background: rgba(30, 30, 30, 0.6);
+  background: var(--bg-overlay);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--text-secondary);
@@ -1415,7 +1444,7 @@ body {
 }
 
 .btn-stop-status:hover {
-  background: rgba(40, 30, 30, 0.7);
+  background: var(--bg-overlay);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-color: #f48771;
@@ -1539,7 +1568,7 @@ body {
 }
 
 .btn.outlined {
-  background: rgba(30, 30, 30, 0.6);
+  background: var(--bg-overlay);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1562,12 +1591,12 @@ body {
 }
 
 .btn.outlined:hover:not(:disabled) {
-  background: rgba(40, 40, 40, 0.7);
+  background: var(--bg-overlay);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--accent-blue);
   transform: translateY(-1px);
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.15), 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow);
 }
 
 .btn.outlined:hover:not(:disabled)::before {
@@ -1672,7 +1701,7 @@ body {
 
 /* Send Button (standalone) */
 .btn-send {
-  background: rgba(30, 30, 30, 0.6);
+  background: var(--bg-overlay);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--accent-blue);
@@ -1706,7 +1735,7 @@ body {
 }
 
 .btn-send:hover:not(:disabled) {
-  background: rgba(30, 40, 50, 0.7);
+  background: var(--bg-overlay);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-color: var(--accent-blue);
@@ -1744,6 +1773,7 @@ body {
   align-self: center;
   width: 20px;
   height: 20px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
 
 .btn-thinking-toggle.active {
@@ -1780,6 +1810,7 @@ body {
   margin-left: 8px;
   width: 20px;
   height: 20px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
 
 .btn-plan-toggle.active {
@@ -1819,6 +1850,7 @@ body {
   width: 18px;
   height: 18px;
   vertical-align: middle;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
 
 .btn-attach:hover:not(:disabled) {
@@ -1966,7 +1998,7 @@ body {
   width: 32px;
   height: 32px;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(30, 30, 30, 0.6);
+  background: var(--bg-overlay);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--text-secondary);
@@ -1995,7 +2027,7 @@ body {
 }
 
 .modal-close:hover {
-  background: rgba(40, 30, 30, 0.7);
+  background: var(--bg-overlay);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-color: #f48771;
@@ -2118,7 +2150,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4e4e52;
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Permission Dialog */
@@ -2259,7 +2291,7 @@ body {
   width: 32px;
   height: 32px;
   font-size: 28px;
-  background: rgba(30, 30, 30, 0.6);
+  background: var(--bg-overlay);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -2287,7 +2319,7 @@ body {
 }
 
 .settings-header .btn-icon.close:hover {
-  background: rgba(40, 30, 30, 0.7);
+  background: var(--bg-overlay);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-color: #f48771;
@@ -2357,6 +2389,81 @@ body {
   outline: none;
   border-color: var(--accent-blue);
   box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+/* WSL Configuration Styles */
+.wsl-config {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--accent-blue);
+}
+
+.checkbox-label span {
+  user-select: none;
+}
+
+.wsl-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-left: 26px;
+  border-left: 2px solid var(--border-color);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.text-input {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.text-input:hover {
+  border-color: var(--accent-blue);
+  background-color: var(--bg-hover);
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+.text-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
 }
 
 .permission-list {
@@ -2435,7 +2542,7 @@ body {
   width: 28px;
   height: 28px;
   font-size: 20px;
-  background: rgba(30, 30, 30, 0.6);
+  background: var(--bg-overlay);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -2480,6 +2587,7 @@ body {
 .settings-footer {
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
   padding: 16px 24px;
   border-top: 1px solid var(--border-color);
 }
@@ -2541,7 +2649,7 @@ body {
 .session-settings-button {
   width: 24px;
   height: 24px;
-  background: rgba(30, 30, 30, 0.6);
+  background: var(--bg-overlay);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -2571,8 +2679,8 @@ body {
 }
 
 .session-settings-button:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(40, 40, 40, 0.7);
+  border-color: var(--accent-blue);
+  background: var(--bg-overlay);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: var(--text-primary);
@@ -2588,7 +2696,7 @@ body {
 .session-yolo-toggle {
   width: 24px;
   height: 24px;
-  background: rgba(30, 30, 30, 0.6);
+  background: var(--bg-overlay);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -2618,11 +2726,11 @@ body {
 }
 
 .session-yolo-toggle:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(40, 40, 40, 0.7);
+  border-color: var(--accent-blue);
+  background: var(--bg-overlay);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.15), 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow);
   transform: translateY(-1px);
 }
 
@@ -2669,12 +2777,10 @@ body {
   margin: 12px 0;
   border-radius: 8px;
   overflow: hidden;
-  background: linear-gradient(135deg,
-    rgba(40, 40, 40, 0.95) 0%,
-    rgba(30, 30, 30, 0.9) 100%);
+  background: var(--bg-tertiary);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow);
   border: 1px solid rgba(255, 255, 255, 0.1);
   max-width: 100%;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -2682,7 +2788,7 @@ body {
 
 .code-block-wrapper:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 3px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow);
   border-color: rgba(0, 122, 204, 0.3);
 }
 
@@ -2876,11 +2982,11 @@ body {
 }
 .message-content h5 {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
 }
 .message-content h6 {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -2896,7 +3002,7 @@ body {
   border-radius: 8px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   font-style: italic;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
 }
 
 .message-content a {
@@ -2967,7 +3073,7 @@ body {
 }
 
 .file-path-button:hover {
-  background: linear-gradient(135deg, var(--bg-hover) 0%, #4e4e52 100%);
+  background: linear-gradient(135deg, var(--bg-hover) 0%, var(--bg-hover-intense) 100%);
   border-color: var(--accent-blue);
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0, 122, 204, 0.2);
@@ -3274,7 +3380,7 @@ body {
 }
 
 .write-file-header:hover {
-  background: linear-gradient(135deg, var(--bg-hover) 0%, #4e4e52 100%);
+  background: linear-gradient(135deg, var(--bg-hover) 0%, var(--bg-hover-intense) 100%);
   border-color: var(--accent-blue);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 122, 204, 0.2);
@@ -4018,7 +4124,7 @@ body {
 
 .tool-input-content::-webkit-scrollbar-thumb:hover,
 .diff-content::-webkit-scrollbar-thumb:hover {
-  background: #5e5e62;
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Loading State for File Buttons */

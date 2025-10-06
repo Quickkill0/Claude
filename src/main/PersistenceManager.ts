@@ -346,7 +346,7 @@ export class PersistenceManager {
     } catch (error) {
       // Return default settings if file doesn't exist
       this.settings = {
-        theme: 'dark',
+        theme: 'auto',
         defaultModel: 'default',
         alwaysAllowPermissions: [],
       };

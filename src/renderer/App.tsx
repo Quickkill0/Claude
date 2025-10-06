@@ -13,6 +13,9 @@ const App: React.FC = () => {
     // Initialize sessions from Electron - only once
     initializeSessions();
 
+    // Load and apply theme settings
+    loadAndApplyTheme();
+
     // Register permission request listener only once
     if (!permissionListenerRegistered.current) {
       window.electronAPI.onPermissionRequest((request: PermissionRequest) => {
@@ -22,6 +25,24 @@ const App: React.FC = () => {
       permissionListenerRegistered.current = true;
     }
   }, []);
+
+  const loadAndApplyTheme = async () => {
+    try {
+      const settings = await window.electronAPI.getSettings();
+      applyTheme(settings.theme);
+    } catch (error) {
+      console.error('Failed to load theme:', error);
+    }
+  };
+
+  const applyTheme = (theme: 'light' | 'dark' | 'auto') => {
+    if (theme === 'auto') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.body.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    } else {
+      document.body.setAttribute('data-theme', theme);
+    }
+  };
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
