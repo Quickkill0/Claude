@@ -521,11 +521,6 @@ function setupIPCHandlers() {
       const files: FileItem[] = [];
 
       for (const entry of entries) {
-        // Skip hidden files and common ignore patterns
-        if (entry.name.startsWith('.') || entry.name === 'node_modules') {
-          continue;
-        }
-
         const entryPath = path.join(fullPath, entry.name);
         const stats = await fs.stat(entryPath);
         const relPath = relativePath
