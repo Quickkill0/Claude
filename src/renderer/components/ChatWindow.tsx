@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { Session, SlashCommand } from '../../shared/types';
+import type { Session, SlashCommand, Reference, Agent, FileItem } from '../../shared/types';
 import { useSessionStore } from '../store/sessionStore';
 import MessageList from './MessageList';
 import HistoryModal from './HistoryModal';
 import RestoreModal from './RestoreModal';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
+import ReferenceAutocomplete from './ReferenceAutocomplete';
+import ReferenceChip from './ReferenceChip';
 import AgentManagementModal from './AgentManagementModal';
 import MCPManagementModal from './MCPManagementModal';
 import { CommandHandler } from '../utils/commandHandler';
@@ -32,6 +34,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showMCPModal, setShowMCPModal] = useState(false);
 
+  // Reference state
+  const [references, setReferences] = useState<Reference[]>([]);
+  const [availableReferences, setAvailableReferences] = useState<Reference[]>([]);
+  const [showReferenceAutocomplete, setShowReferenceAutocomplete] = useState(false);
+  const [referenceAutocompleteQuery, setReferenceAutocompleteQuery] = useState('');
+  const [referenceAutocompletePosition, setReferenceAutocompletePosition] = useState({ top: 0, left: 0 });
+
   const sessionMessages = messages.get(session.id) || [];
   const inputText = getInputText(session.id);
 
@@ -45,10 +54,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
     // Match slash command pattern: /command or start of line with /
     const slashMatch = textBeforeCursor.match(/(?:^|\s)\/(\w*)$/);
 
+    // Match @ reference pattern: @reference
+    const atMatch = textBeforeCursor.match(/(?:^|\s)@([\w\-\/\.]*)$/);
+
     if (slashMatch && slashCommands.length > 0) {
       const query = slashMatch[1];
       setAutocompleteQuery(query);
       setShowAutocomplete(true);
+      setShowReferenceAutocomplete(false);
 
       // Calculate autocomplete position
       if (inputRef.current) {
@@ -58,13 +71,28 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           left: rect.left,
         });
       }
+    } else if (atMatch && availableReferences.length > 0) {
+      const query = atMatch[1];
+      setReferenceAutocompleteQuery(query);
+      setShowReferenceAutocomplete(true);
+      setShowAutocomplete(false);
+
+      // Calculate autocomplete position
+      if (inputRef.current) {
+        const rect = inputRef.current.getBoundingClientRect();
+        setReferenceAutocompletePosition({
+          top: rect.top - 400, // Show above the input
+          left: rect.left,
+        });
+      }
     } else {
       setShowAutocomplete(false);
+      setShowReferenceAutocomplete(false);
     }
   };
 
   const handleSend = () => {
-    if ((inputText.trim() || selectedFile) && !session.isProcessing) {
+    if ((inputText.trim() || selectedFile || references.length > 0) && !session.isProcessing) {
       let messageToSend = inputText.trim();
 
       // Check for built-in commands first
@@ -72,11 +100,31 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
       if (builtInResult.handled) {
         setInputText('');
         setSelectedFile(null);
+        setReferences([]);
         return;
       }
 
       // Expand custom slash commands before sending
       messageToSend = expandSlashCommands(messageToSend);
+
+      // Prepend references to message
+      if (references.length > 0) {
+        const referenceText = references.map(ref => {
+          switch (ref.kind) {
+            case 'file':
+              return `File: ${ref.path}`;
+            case 'folder':
+              return `Folder: ${ref.path}`;
+            case 'agent':
+              return `Agent: ${ref.name}`;
+            default:
+              return `Reference: ${ref.path}`;
+          }
+        }).join('\n');
+        messageToSend = messageToSend
+          ? `${referenceText}\n\n${messageToSend}`
+          : referenceText;
+      }
 
       // Append file path to message if a file is selected
       if (selectedFile) {
@@ -88,6 +136,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
       sendMessage(session.id, messageToSend);
       setInputText('');
       setSelectedFile(null);
+      setReferences([]);
     }
   };
 
@@ -310,6 +359,45 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
     toggleChatMode(session.id);
   };
 
+  // Reference handlers
+  const handleReferenceSelect = (reference: Reference) => {
+    // Add reference to the list if not already present
+    if (!references.find(ref => ref.path === reference.path && ref.kind === reference.kind)) {
+      setReferences([...references, reference]);
+    }
+
+    // Remove the @ mention from input
+    const cursorPosition = inputRef.current?.selectionStart || 0;
+    const textBeforeCursor = inputText.substring(0, cursorPosition);
+    const textAfterCursor = inputText.substring(cursorPosition);
+    const atMatch = textBeforeCursor.match(/((?:^|\s)@[\w\-\/\.]*)$/);
+
+    if (atMatch) {
+      const beforeAt = textBeforeCursor.substring(0, textBeforeCursor.length - atMatch[1].length);
+      const newText = beforeAt + textAfterCursor;
+      setInputText(newText);
+
+      // Focus back on input
+      setTimeout(() => {
+        if (inputRef.current) {
+          const newCursorPos = beforeAt.length;
+          inputRef.current.focus();
+          inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      }, 0);
+    }
+
+    setShowReferenceAutocomplete(false);
+  };
+
+  const handleRemoveReference = (index: number) => {
+    setReferences(references.filter((_, i) => i !== index));
+  };
+
+  const handleCloseReferenceAutocomplete = () => {
+    setShowReferenceAutocomplete(false);
+  };
+
   // Load slash commands when session changes
   useEffect(() => {
     const loadCommands = async () => {
@@ -322,6 +410,67 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
     };
 
     loadCommands();
+  }, [session.id]);
+
+  // Load available references (files, folders, agents) when session changes
+  useEffect(() => {
+    const loadReferences = async () => {
+      try {
+        const refs: Reference[] = [];
+
+        // Recursively load all files and folders from working directory
+        const loadFilesRecursively = async (relativePath?: string): Promise<void> => {
+          try {
+            const files = await window.electronAPI.listFiles(session.id, relativePath);
+
+            for (const file of files) {
+              // Skip common directories that should be ignored
+              const ignoredDirs = ['node_modules', '.git', 'dist', 'build', '.next', 'out', 'coverage', '.cache'];
+              if (file.isDirectory && ignoredDirs.includes(file.name)) {
+                continue;
+              }
+
+              if (file.isDirectory) {
+                refs.push({
+                  kind: 'folder',
+                  name: file.name,
+                  path: file.path,
+                });
+                // Recursively load subdirectory
+                await loadFilesRecursively(file.path);
+              } else {
+                refs.push({
+                  kind: 'file',
+                  name: file.name,
+                  path: file.path,
+                });
+              }
+            }
+          } catch (error) {
+            console.error(`Error loading files from ${relativePath}:`, error);
+          }
+        };
+
+        await loadFilesRecursively();
+
+        // Load agents
+        const agents = await window.electronAPI.getAgents(session.id);
+        for (const agent of agents) {
+          refs.push({
+            kind: 'agent',
+            name: agent.name,
+            path: agent.filePath,
+            description: agent.description,
+          });
+        }
+
+        setAvailableReferences(refs);
+      } catch (error) {
+        console.error('Error loading references:', error);
+      }
+    };
+
+    loadReferences();
   }, [session.id]);
 
   // Auto-resize textarea
@@ -422,6 +571,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           </div>
         )}
 
+        {references.length > 0 && (
+          <div className="file-attachment-area">
+            {references.map((ref, index) => (
+              <ReferenceChip
+                key={`${ref.kind}-${ref.path}-${index}`}
+                reference={ref}
+                onRemove={() => handleRemoveReference(index)}
+              />
+            ))}
+          </div>
+        )}
+
         <textarea
           ref={inputRef}
           className="input-field"
@@ -479,7 +640,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           <button
             className="btn-send"
             onClick={handleSend}
-            disabled={session.isProcessing || (!inputText.trim() && !selectedFile)}
+            disabled={session.isProcessing || (!inputText.trim() && !selectedFile && references.length === 0)}
             title="Send message (Enter)"
           >
             Send ↵
@@ -511,6 +672,16 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           onSelect={handleCommandSelect}
           onClose={handleCloseAutocomplete}
           position={autocompletePosition}
+        />
+      )}
+
+      {showReferenceAutocomplete && (
+        <ReferenceAutocomplete
+          references={availableReferences}
+          query={referenceAutocompleteQuery}
+          onSelect={handleReferenceSelect}
+          onClose={handleCloseReferenceAutocomplete}
+          position={referenceAutocompletePosition}
         />
       )}
 

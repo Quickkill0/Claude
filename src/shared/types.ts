@@ -184,6 +184,15 @@ export interface FileItem {
   modifiedTime?: string;
 }
 
+export type ReferenceKind = 'file' | 'folder' | 'agent';
+
+export interface Reference {
+  kind: ReferenceKind;
+  name: string;
+  path: string;
+  description?: string;
+}
+
 // IPC Channel names
 export const IPC_CHANNELS = {
   // Session management
