@@ -72,8 +72,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onPermissionRequest: (callback: (request: any) => void) => {
     ipcRenderer.on(IPC_CHANNELS.PERMISSION_REQUEST, (_, request) => callback(request));
   },
-  respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) =>
-    ipcRenderer.invoke(IPC_CHANNELS.PERMISSION_RESPONSE, { requestId, allowed, alwaysAllow }),
+  respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean, alwaysDeny?: boolean) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PERMISSION_RESPONSE, { requestId, allowed, alwaysAllow, alwaysDeny }),
   removeSessionPermission: (sessionId: string, index: number) =>
     ipcRenderer.invoke('session:remove-permission', { sessionId, index }),
 

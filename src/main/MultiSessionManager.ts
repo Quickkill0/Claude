@@ -199,10 +199,10 @@ export class MultiSessionManager {
   }
 
   /**
-   * Saves a permission as always-allow for a specific session
+   * Saves a permission as always-allow or always-deny for a specific session
    * With PreToolUse hooks, permissions are checked in settings.local.json
    */
-  async savePermissionForSession(sessionId: string, tool: string, filePath: string, input?: any): Promise<void> {
+  async savePermissionForSession(sessionId: string, tool: string, filePath: string, input?: any, allow: boolean = true): Promise<void> {
     const activeSession = this.sessions.get(sessionId);
     if (!activeSession) return;
 
@@ -255,7 +255,7 @@ export class MultiSessionManager {
       activeSession.session.sessionPermissions.push({
         tool,
         path: displayPath,
-        allowed: true,
+        allowed: allow,
         createdAt: new Date().toISOString(),
       });
     }
@@ -274,23 +274,42 @@ export class MultiSessionManager {
       if (!settings.permissions.allow) {
         settings.permissions.allow = [];
       }
+      if (!settings.permissions.deny) {
+        settings.permissions.deny = [];
+      }
 
-      // Check if permission already exists in settings
-      const settingsExists = settings.permissions.allow.includes(permissionString);
+      const listName = allow ? 'allow' : 'deny';
+      const oppositeList = allow ? 'deny' : 'allow';
+
+      // Remove from opposite list if exists
+      const oppositeIndex = settings.permissions[oppositeList].indexOf(permissionString);
+      if (oppositeIndex !== -1) {
+        settings.permissions[oppositeList].splice(oppositeIndex, 1);
+      }
+
+      // Check if permission already exists in target list
+      const settingsExists = settings.permissions[listName].includes(permissionString);
 
       if (!settingsExists) {
-        settings.permissions.allow.push(permissionString);
+        settings.permissions[listName].push(permissionString);
 
         // Write settings back
         fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
-        console.log(`[PERMISSIONS] Saved to settings.local.json: ${permissionString}`);
+        console.log(`[PERMISSIONS] Saved to settings.local.json (${listName}): ${permissionString}`);
       }
 
     } catch (error) {
       console.error('[PERMISSIONS] Error saving to settings.local.json:', error);
     }
 
-    console.log(`[PERMISSIONS] Saved permission for ${tool}: ${filePath}`);
+    console.log(`[PERMISSIONS] Saved ${allow ? 'allow' : 'deny'} permission for ${tool}: ${filePath}`);
+  }
+
+  /**
+   * Saves a permission as always-deny for a specific session
+   */
+  async saveDenyPermissionForSession(sessionId: string, tool: string, filePath: string, input?: any): Promise<void> {
+    return this.savePermissionForSession(sessionId, tool, filePath, input, false);
   }
 
   /**
@@ -313,7 +332,7 @@ export class MultiSessionManager {
       if (fs.existsSync(settingsFile)) {
         const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
 
-        if (settings.permissions && settings.permissions.allow) {
+        if (settings.permissions) {
           // Format permission string to match what we saved
           let permissionString = '';
 
@@ -329,12 +348,16 @@ export class MultiSessionManager {
             permissionString = `${permission.tool}(${permission.path})`;
           }
 
-          // Remove the permission from allow array
-          const allowIndex = settings.permissions.allow.indexOf(permissionString);
-          if (allowIndex !== -1) {
-            settings.permissions.allow.splice(allowIndex, 1);
-            fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
-            console.log(`[PERMISSIONS] Removed from settings.local.json: ${permissionString}`);
+          // Determine which list to remove from based on permission.allowed
+          const listName = permission.allowed ? 'allow' : 'deny';
+
+          if (settings.permissions[listName] && Array.isArray(settings.permissions[listName])) {
+            const permIndex = settings.permissions[listName].indexOf(permissionString);
+            if (permIndex !== -1) {
+              settings.permissions[listName].splice(permIndex, 1);
+              fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+              console.log(`[PERMISSIONS] Removed from settings.local.json (${listName}): ${permissionString}`);
+            }
           }
         }
       }
@@ -369,34 +392,46 @@ export class MultiSessionManager {
       if (fs.existsSync(settingsFile)) {
         const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
 
-        if (settings.permissions && settings.permissions.allow) {
-          // Parse permission strings and add to session object
-          for (const permString of settings.permissions.allow) {
-            // Parse format: Tool(path) or Bash(command:*)
-            const match = permString.match(/^([^(]+)\(([^)]+)\)$/);
-            if (match) {
-              const tool = match[1];
-              let path = match[2];
+        if (settings.permissions) {
+          // Helper function to parse and add permissions
+          const addPermissions = (permStrings: string[], allowed: boolean) => {
+            for (const permString of permStrings) {
+              // Parse format: Tool(path) or Bash(command:*)
+              const match = permString.match(/^([^(]+)\(([^)]+)\)$/);
+              if (match) {
+                const tool = match[1];
+                let path = match[2];
 
-              // For Bash commands, extract just the command part
-              if (tool === 'Bash' && path.includes(':')) {
-                path = path.split(':')[0];
-              }
+                // For Bash commands, extract just the command part
+                if (tool === 'Bash' && path.includes(':')) {
+                  path = path.split(':')[0];
+                }
 
-              // Check if already exists (avoid duplicates)
-              const exists = activeSession.session.sessionPermissions.some(
-                p => p.tool === tool && p.path === path
-              );
+                // Check if already exists (avoid duplicates)
+                const exists = activeSession.session.sessionPermissions?.some(
+                  p => p.tool === tool && p.path === path
+                );
 
-              if (!exists) {
-                activeSession.session.sessionPermissions.push({
-                  tool,
-                  path,
-                  allowed: true,
-                  createdAt: new Date().toISOString(),
-                });
+                if (!exists && activeSession.session.sessionPermissions) {
+                  activeSession.session.sessionPermissions.push({
+                    tool,
+                    path,
+                    allowed,
+                    createdAt: new Date().toISOString(),
+                  });
+                }
               }
             }
+          };
+
+          // Load allow permissions
+          if (settings.permissions.allow && Array.isArray(settings.permissions.allow)) {
+            addPermissions(settings.permissions.allow, true);
+          }
+
+          // Load deny permissions
+          if (settings.permissions.deny && Array.isArray(settings.permissions.deny)) {
+            addPermissions(settings.permissions.deny, false);
           }
 
           console.log(`[PERMISSIONS] Loaded ${activeSession.session.sessionPermissions.length} permissions for session ${sessionId}`);

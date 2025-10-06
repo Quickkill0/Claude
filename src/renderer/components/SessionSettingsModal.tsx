@@ -9,7 +9,9 @@ interface SessionSettingsModalProps {
 }
 
 const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({ session, onClose, onRemovePermission, onUpdateModel }) => {
-  const permissions = session.sessionPermissions || [];
+  const allPermissions = session.sessionPermissions || [];
+  const allowedPermissions = allPermissions.filter(p => p.allowed);
+  const deniedPermissions = allPermissions.filter(p => !p.allowed);
 
   // Format permission for display
   const formatPermission = (permission: any): string => {
@@ -59,32 +61,69 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({ session, on
           <section className="settings-section">
             <h3>Auto-Accept Permissions</h3>
             <p className="settings-description">
-              These permissions are automatically allowed for this session only.
+              These permissions are automatically allowed for this session.
             </p>
 
-            {permissions.length === 0 ? (
+            {allowedPermissions.length === 0 ? (
               <div className="empty-state">
-                <p>No saved permissions yet</p>
+                <p>No auto-allow permissions</p>
               </div>
             ) : (
               <div className="permission-list">
-                {permissions.map((permission, index) => (
-                  <div key={index} className="permission-item">
-                    <div className="permission-info">
-                      <div className="permission-tool">{formatPermission(permission)}</div>
-                      <div className="permission-date">
-                        Added: {new Date(permission.createdAt).toLocaleDateString()}
+                {allPermissions.map((permission, index) =>
+                  permission.allowed ? (
+                    <div key={index} className="permission-item permission-allowed">
+                      <div className="permission-info">
+                        <div className="permission-tool">✓ {formatPermission(permission)}</div>
+                        <div className="permission-date">
+                          Added: {new Date(permission.createdAt).toLocaleDateString()}
+                        </div>
                       </div>
+                      <button
+                        className="btn-icon delete"
+                        onClick={() => onRemovePermission(session.id, index)}
+                        title="Remove permission"
+                      >
+                        ×
+                      </button>
                     </div>
-                    <button
-                      className="btn-icon delete"
-                      onClick={() => onRemovePermission(session.id, index)}
-                      title="Remove permission"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                  ) : null
+                )}
+              </div>
+            )}
+          </section>
+
+          <section className="settings-section">
+            <h3>Auto-Deny Permissions</h3>
+            <p className="settings-description">
+              These permissions are automatically denied for this session.
+            </p>
+
+            {deniedPermissions.length === 0 ? (
+              <div className="empty-state">
+                <p>No auto-deny permissions</p>
+              </div>
+            ) : (
+              <div className="permission-list">
+                {allPermissions.map((permission, index) =>
+                  !permission.allowed ? (
+                    <div key={index} className="permission-item permission-denied">
+                      <div className="permission-info">
+                        <div className="permission-tool">✕ {formatPermission(permission)}</div>
+                        <div className="permission-date">
+                          Added: {new Date(permission.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <button
+                        className="btn-icon delete"
+                        onClick={() => onRemovePermission(session.id, index)}
+                        title="Remove permission"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : null
+                )}
               </div>
             )}
           </section>

@@ -3,12 +3,16 @@ import type { PermissionRequest } from '../../shared/types';
 
 interface PermissionDialogProps {
   request: PermissionRequest;
-  onRespond: (allowed: boolean, alwaysAllow: boolean) => void;
+  onRespond: (allowed: boolean, alwaysAllow: boolean, alwaysDeny?: boolean) => void;
 }
 
 const PermissionDialog: React.FC<PermissionDialogProps> = ({ request, onRespond }) => {
   const handleDeny = () => {
     onRespond(false, false);
+  };
+
+  const handleAlwaysDeny = () => {
+    onRespond(false, false, true);
   };
 
   const handleAllow = () => {
@@ -42,13 +46,16 @@ const PermissionDialog: React.FC<PermissionDialogProps> = ({ request, onRespond 
           </div>
 
           <p className="permission-hint">
-            Choose "Accept Always" to save this permission and skip future prompts for this tool.
+            Choose "Accept Always" or "Decline Always" to save this permission and skip future prompts.
           </p>
         </div>
 
         <div className="permission-actions">
           <button className="btn outlined" onClick={handleDeny}>
-            Deny
+            Deny Once
+          </button>
+          <button className="btn danger" onClick={handleAlwaysDeny}>
+            Decline Always
           </button>
           <button className="btn secondary" onClick={handleAllow}>
             Accept Once

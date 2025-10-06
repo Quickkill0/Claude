@@ -310,19 +310,20 @@ function setupIPCHandlers() {
   });
 
   // Permissions
-  ipcMain.handle(IPC_CHANNELS.PERMISSION_RESPONSE, async (_, { requestId, allowed, alwaysAllow }) => {
+  ipcMain.handle(IPC_CHANNELS.PERMISSION_RESPONSE, async (_, { requestId, allowed, alwaysAllow, alwaysDeny }) => {
     const pending = pendingPermissions.get(requestId);
     if (!pending) return null;
 
     pendingPermissions.delete(requestId);
 
-    // If always allow, save to permissions.json for the session
+    // If always allow, save to allow list
     if (alwaysAllow && allowed) {
       await sessionManager.savePermissionForSession(
         pending.request.sessionId,
         pending.request.tool,
         pending.request.path,
-        pending.request.input // Pass tool input for proper permission formatting
+        pending.request.input, // Pass tool input for proper permission formatting
+        true // allow = true
       );
       console.log('[PERMISSION] Saved always-allow to settings.local.json');
 
@@ -335,7 +336,26 @@ function setupIPCHandlers() {
       }
     }
 
-    // Resolve with both allowed and alwaysAllow
+    // If always deny, save to deny list
+    if (alwaysDeny && !allowed) {
+      await sessionManager.saveDenyPermissionForSession(
+        pending.request.sessionId,
+        pending.request.tool,
+        pending.request.path,
+        pending.request.input // Pass tool input for proper permission formatting
+      );
+      console.log('[PERMISSION] Saved always-deny to settings.local.json');
+
+      // Save the updated session with the new permission
+      const sessions = sessionManager.getAllSessions();
+      const session = sessions.find(s => s.id === pending.request.sessionId);
+      if (session) {
+        const messages = await persistenceManager.getSessionMessages(pending.request.sessionId) || [];
+        await persistenceManager.saveSession(session, messages);
+      }
+    }
+
+    // Resolve with allowed status
     pending.resolve(allowed);
 
     // Return updated sessions so frontend can refresh

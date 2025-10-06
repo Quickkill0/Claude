@@ -467,8 +467,8 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         const permissionRequest = metadata?.permissionRequest;
         if (!permissionRequest) return null;
 
-        const handlePermissionResponse = async (allowed: boolean, alwaysAllow: boolean) => {
-          await respondToPermission(permissionRequest.id, allowed, alwaysAllow);
+        const handlePermissionResponse = async (allowed: boolean, alwaysAllow: boolean, alwaysDeny?: boolean) => {
+          await respondToPermission(permissionRequest.id, allowed, alwaysAllow, alwaysDeny);
         };
 
         return (
@@ -499,14 +499,20 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                   </div>
                 </div>
                 <p className="permission-hint">
-                  Choose "Accept Always" to save this permission and skip future prompts for this tool.
+                  Choose "Accept Always" or "Decline Always" to save this permission and skip future prompts.
                 </p>
                 <div className="permission-actions">
                   <button
                     className="btn outlined"
                     onClick={() => handlePermissionResponse(false, false)}
                   >
-                    Deny
+                    Deny Once
+                  </button>
+                  <button
+                    className="btn danger"
+                    onClick={() => handlePermissionResponse(false, false, true)}
+                  >
+                    Decline Always
                   </button>
                   <button
                     className="btn secondary"

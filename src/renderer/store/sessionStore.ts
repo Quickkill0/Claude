@@ -28,7 +28,7 @@ interface SessionStore {
   togglePlanMode: (sessionId: string) => void;
   toggleNoCodeMode: (sessionId: string) => void;
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => void;
-  respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean) => Promise<void>;
+  respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean, alwaysDeny?: boolean) => Promise<void>;
   removeSessionPermission: (sessionId: string, index: number) => Promise<void>;
 }
 
@@ -576,12 +576,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     get().addMessage(request.sessionId, message);
   },
 
-  respondToPermission: async (requestId: string, allowed: boolean, alwaysAllow: boolean) => {
+  respondToPermission: async (requestId: string, allowed: boolean, alwaysAllow: boolean, alwaysDeny?: boolean) => {
     try {
-      const updatedSessions = await window.electronAPI.respondToPermission(requestId, allowed, alwaysAllow);
+      const updatedSessions = await window.electronAPI.respondToPermission(requestId, allowed, alwaysAllow, alwaysDeny);
 
-      // Update sessions with latest permissions if alwaysAllow was checked
-      if (updatedSessions && alwaysAllow && allowed) {
+      // Update sessions with latest permissions if alwaysAllow or alwaysDeny was checked
+      if (updatedSessions && (alwaysAllow || alwaysDeny)) {
         set({ sessions: updatedSessions });
       }
 

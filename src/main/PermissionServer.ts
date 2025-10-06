@@ -87,8 +87,22 @@ export class PermissionServer {
             }
 
             // Check settings.local.json for saved permissions
-            const isAutoAllowed = await this.checkSavedPermissions(sessionId, request.tool_name, request.path, request.tool_input);
-            if (isAutoAllowed) {
+            const permissionCheck = await this.checkSavedPermissions(sessionId, request.tool_name, request.path, request.tool_input);
+
+            // Auto-deny if in deny list
+            if (permissionCheck === 'deny') {
+              console.log('[PERMISSION SERVER] Auto-denying from saved permissions:', request.tool_name, request.path);
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({
+                decision: 'deny',
+                reason: 'Saved deny permission',
+                alwaysAllow: false
+              }));
+              return;
+            }
+
+            // Auto-approve if in allow list
+            if (permissionCheck === 'allow') {
               console.log('[PERMISSION SERVER] Auto-approving from saved permissions:', request.tool_name, request.path);
               res.writeHead(200, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({
@@ -223,17 +237,18 @@ export class PermissionServer {
 
   /**
    * Checks if a permission is already saved in settings.local.json
+   * Returns 'allow', 'deny', or null
    */
-  private async checkSavedPermissions(sessionId: string, tool: string, filePath: string, input?: any): Promise<boolean> {
+  private async checkSavedPermissions(sessionId: string, tool: string, filePath: string, input?: any): Promise<'allow' | 'deny' | null> {
     try {
       const workingDir = this.getSessionWorkingDir(sessionId);
-      if (!workingDir) return false;
+      if (!workingDir) return null;
 
       const settingsFile = path.join(workingDir, '.claude', 'settings.local.json');
-      if (!fs.existsSync(settingsFile)) return false;
+      if (!fs.existsSync(settingsFile)) return null;
 
       const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
-      if (!settings.permissions || !settings.permissions.allow) return false;
+      if (!settings.permissions) return null;
 
       // Build the permission patterns to check
       const patternsToCheck: string[] = [];
@@ -254,17 +269,28 @@ export class PermissionServer {
         }
       }
 
-      // Check if any pattern matches
-      for (const pattern of patternsToCheck) {
-        if (settings.permissions.allow.includes(pattern)) {
-          return true;
+      // Check deny list first (deny takes precedence)
+      if (settings.permissions.deny && Array.isArray(settings.permissions.deny)) {
+        for (const pattern of patternsToCheck) {
+          if (settings.permissions.deny.includes(pattern)) {
+            return 'deny';
+          }
         }
       }
 
-      return false;
+      // Check allow list
+      if (settings.permissions.allow && Array.isArray(settings.permissions.allow)) {
+        for (const pattern of patternsToCheck) {
+          if (settings.permissions.allow.includes(pattern)) {
+            return 'allow';
+          }
+        }
+      }
+
+      return null;
     } catch (error) {
       console.error('[PERMISSION SERVER] Error checking saved permissions:', error);
-      return false;
+      return null;
     }
   }
 }
