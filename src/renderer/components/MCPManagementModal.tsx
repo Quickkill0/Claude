@@ -271,11 +271,21 @@ const MCPManagementModal: React.FC<MCPManagementModalProps> = ({ sessionId, onCl
   };
 
   const handleEdit = (mcp: MCPServer) => {
+    // Unwrap Windows cmd wrapper if present
+    let command = mcp.command || '';
+    let args = mcp.args || [];
+
+    if (command === 'cmd' && args.length >= 2 && args[0] === '/c') {
+      // This is a Windows-wrapped command, unwrap it for display
+      command = args[1];
+      args = args.slice(2);
+    }
+
     setFormData({
       name: mcp.name,
       type: mcp.type,
-      command: mcp.command || '',
-      args: mcp.args ? mcp.args.join('\n') : '',
+      command: command,
+      args: args.join('\n'),
       env: mcp.env ? JSON.stringify(mcp.env, null, 2) : '',
       url: mcp.url || '',
       headers: mcp.headers ? JSON.stringify(mcp.headers, null, 2) : '',
@@ -372,6 +382,14 @@ const MCPManagementModal: React.FC<MCPManagementModalProps> = ({ sessionId, onCl
     setViewMode('store');
   };
 
+  // Helper function to get display command (unwrap Windows cmd wrapper)
+  const getDisplayCommand = (mcp: MCPServer): string => {
+    if (mcp.command === 'cmd' && mcp.args && mcp.args.length >= 2 && mcp.args[0] === '/c') {
+      return mcp.args[1];
+    }
+    return mcp.command || '';
+  };
+
   const handleInstallFromStore = async (template: MCPTemplate, scope: MCPScope) => {
     try {
       const mcpData = {
@@ -466,7 +484,7 @@ const MCPManagementModal: React.FC<MCPManagementModalProps> = ({ sessionId, onCl
                             </div>
                             <div className="agent-meta">
                               <span className="agent-tag">Type: {mcp.type}</span>
-                              {mcp.command && <span className="agent-tag">Command: {mcp.command}</span>}
+                              {mcp.command && <span className="agent-tag">Command: {getDisplayCommand(mcp)}</span>}
                               {mcp.url && <span className="agent-tag">URL: {mcp.url}</span>}
                             </div>
                           </div>
@@ -502,7 +520,7 @@ const MCPManagementModal: React.FC<MCPManagementModalProps> = ({ sessionId, onCl
                             </div>
                             <div className="agent-meta">
                               <span className="agent-tag">Type: {mcp.type}</span>
-                              {mcp.command && <span className="agent-tag">Command: {mcp.command}</span>}
+                              {mcp.command && <span className="agent-tag">Command: {getDisplayCommand(mcp)}</span>}
                               {mcp.url && <span className="agent-tag">URL: {mcp.url}</span>}
                             </div>
                           </div>

@@ -130,11 +130,20 @@ export class MCPParser {
       throw new Error(`MCP server "${mcp.name}" already exists in ${scope} scope`);
     }
 
+    // Wrap npx commands with 'cmd /c' on Windows
+    let command = mcp.command;
+    let args = mcp.args;
+
+    if (process.platform === 'win32' && mcp.type === 'stdio' && mcp.command === 'npx') {
+      command = 'cmd';
+      args = ['/c', 'npx', ...(mcp.args || [])];
+    }
+
     // Add new MCP server
     config.mcpServers[mcp.name] = {
       type: mcp.type,
-      command: mcp.command,
-      args: mcp.args,
+      command: command,
+      args: args,
       env: mcp.env,
       url: mcp.url,
       headers: mcp.headers,
@@ -150,6 +159,9 @@ export class MCPParser {
 
     // Write config back to file
     fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8');
+
+    // Also add to enabledMcpjsonServers in settings.local.json
+    await this.updateEnabledMcpServers(workingDirectory, scope, mcp.name, 'add');
   }
 
   /**
@@ -179,11 +191,20 @@ export class MCPParser {
       delete config.mcpServers[oldName];
     }
 
+    // Wrap npx commands with 'cmd /c' on Windows
+    let command = mcp.command;
+    let args = mcp.args;
+
+    if (process.platform === 'win32' && mcp.type === 'stdio' && mcp.command === 'npx') {
+      command = 'cmd';
+      args = ['/c', 'npx', ...(mcp.args || [])];
+    }
+
     // Update/create new entry
     config.mcpServers[mcp.name] = {
       type: mcp.type,
-      command: mcp.command,
-      args: mcp.args,
+      command: command,
+      args: args,
       env: mcp.env,
       url: mcp.url,
       headers: mcp.headers,
@@ -199,6 +220,12 @@ export class MCPParser {
 
     // Write config back to file
     fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8');
+
+    // Update enabledMcpjsonServers if name changed
+    if (oldName !== mcp.name) {
+      await this.updateEnabledMcpServers(workingDirectory, mcp.source, oldName, 'remove');
+      await this.updateEnabledMcpServers(workingDirectory, mcp.source, mcp.name, 'add');
+    }
   }
 
   /**
@@ -228,6 +255,9 @@ export class MCPParser {
 
     // Write config back to file
     fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8');
+
+    // Also remove from enabledMcpjsonServers in settings.local.json
+    await this.updateEnabledMcpServers(workingDirectory, scope, name, 'remove');
   }
 
   /**
@@ -238,6 +268,67 @@ export class MCPParser {
       return path.join(workingDirectory, '.mcp.json');
     } else {
       return path.join(os.homedir(), '.claude', '.mcp.json');
+    }
+  }
+
+  /**
+   * Update enabledMcpjsonServers in settings.local.json
+   */
+  private static async updateEnabledMcpServers(
+    workingDirectory: string,
+    scope: MCPScope,
+    mcpName: string,
+    action: 'add' | 'remove'
+  ): Promise<void> {
+    try {
+      // Determine settings file path based on scope
+      let settingsFile: string;
+      if (scope === 'project') {
+        settingsFile = path.join(workingDirectory, '.claude', 'settings.local.json');
+      } else {
+        // For personal scope, use home directory
+        settingsFile = path.join(os.homedir(), '.claude', 'settings.local.json');
+      }
+
+      // Ensure .claude directory exists
+      const claudeDir = path.dirname(settingsFile);
+      if (!fs.existsSync(claudeDir)) {
+        fs.mkdirSync(claudeDir, { recursive: true });
+      }
+
+      // Read existing settings or create new
+      let settings: any = {};
+      if (fs.existsSync(settingsFile)) {
+        try {
+          settings = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+        } catch (error) {
+          console.error('Error reading settings.local.json:', error);
+          settings = {};
+        }
+      }
+
+      // Ensure enabledMcpjsonServers array exists
+      if (!settings.enabledMcpjsonServers) {
+        settings.enabledMcpjsonServers = [];
+      }
+
+      // Add or remove MCP name
+      if (action === 'add') {
+        if (!settings.enabledMcpjsonServers.includes(mcpName)) {
+          settings.enabledMcpjsonServers.push(mcpName);
+        }
+      } else if (action === 'remove') {
+        const index = settings.enabledMcpjsonServers.indexOf(mcpName);
+        if (index !== -1) {
+          settings.enabledMcpjsonServers.splice(index, 1);
+        }
+      }
+
+      // Write settings back to file
+      fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2), 'utf-8');
+      console.log(`[MCP] ${action === 'add' ? 'Added' : 'Removed'} ${mcpName} ${action === 'add' ? 'to' : 'from'} enabledMcpjsonServers in ${scope} scope`);
+    } catch (error) {
+      console.error(`Error updating enabledMcpjsonServers:`, error);
     }
   }
 }
