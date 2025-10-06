@@ -161,6 +161,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         content: message,
       });
 
+      // Create checkpoint for user message
+      try {
+        const checkpointMessage = message.length > 50 ? message.substring(0, 47) + '...' : message;
+        await window.electronAPI.createCheckpoint(sessionId, checkpointMessage);
+      } catch (error) {
+        console.error('Failed to create checkpoint:', error);
+        // Don't fail the message send if checkpoint fails
+      }
+
       // Update session processing state
       set((state) => ({
         sessions: state.sessions.map((s) =>

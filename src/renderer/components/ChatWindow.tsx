@@ -3,6 +3,7 @@ import type { Session, SlashCommand } from '../../shared/types';
 import { useSessionStore } from '../store/sessionStore';
 import MessageList from './MessageList';
 import HistoryModal from './HistoryModal';
+import RestoreModal from './RestoreModal';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import AgentManagementModal from './AgentManagementModal';
 import { CommandHandler } from '../utils/commandHandler';
@@ -20,6 +21,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
+  const [showRestore, setShowRestore] = useState(false);
+  const [restoreKey, setRestoreKey] = useState(0);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
@@ -256,6 +259,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
     setShowHistory(true);
   };
 
+  const handleShowRestore = () => {
+    setRestoreKey(prev => prev + 1); // Force remount to refresh data
+    setShowRestore(true);
+  };
+
   const handleLoadConversation = async (conversationId: string) => {
     await loadConversation(session.id, conversationId);
   };
@@ -354,6 +362,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           <h3>{session.name}</h3>
         </div>
         <div className="session-actions">
+          <button className="btn outlined small" onClick={handleShowRestore} title="Restore from checkpoint">
+            🔖 Restore
+          </button>
           <button className="btn outlined small" onClick={handleShowHistory} title="View conversation history">
             📜 History
           </button>
@@ -466,6 +477,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           session={session}
           onClose={() => setShowHistory(false)}
           onLoadConversation={handleLoadConversation}
+        />
+      )}
+
+      {showRestore && (
+        <RestoreModal
+          key={restoreKey}
+          session={session}
+          onClose={() => setShowRestore(false)}
         />
       )}
 

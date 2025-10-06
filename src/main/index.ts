@@ -7,12 +7,14 @@ import { SlashCommandParser } from './SlashCommandParser';
 import { AgentParser } from './AgentParser';
 import { MCPParser } from './MCPParser';
 import { PermissionServer } from './PermissionServer';
+import { CheckpointManager } from './CheckpointManager';
 import { IPC_CHANNELS, PermissionRequest } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let sessionManager: MultiSessionManager;
 let persistenceManager: PersistenceManager;
 let permissionServer: PermissionServer;
+let checkpointManager: CheckpointManager;
 let pendingPermissions: Map<string, { resolve: (allowed: boolean) => void; request: PermissionRequest }> = new Map();
 
 function createWindow() {
@@ -113,6 +115,8 @@ function createWindow() {
 async function initializeManagers() {
   persistenceManager = new PersistenceManager();
   await persistenceManager.initialize();
+
+  checkpointManager = new CheckpointManager();
 
   sessionManager = new MultiSessionManager(
     (sessionId, data) => {
@@ -455,6 +459,48 @@ function setupIPCHandlers() {
     }
 
     return await MCPParser.deleteMCP(session.workingDirectory, name, scope);
+  });
+
+  // Checkpoints
+  ipcMain.handle(IPC_CHANNELS.CREATE_CHECKPOINT, async (_, { sessionId, message }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    return await checkpointManager.createCheckpoint(session.workingDirectory, message);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.GET_CHECKPOINTS, async (_, sessionId: string) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      console.log('Session not found:', sessionId);
+      return [];
+    }
+
+    return await checkpointManager.getCheckpoints(session.workingDirectory);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.RESTORE_CHECKPOINT, async (_, { sessionId, checkpointHash }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    return await checkpointManager.restoreCheckpoint(session.workingDirectory, checkpointHash);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.GET_CHECKPOINT_STATUS, async (_, sessionId: string) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      return { isGitRepo: false, hasChanges: false };
+    }
+
+    return await checkpointManager.getStatus(session.workingDirectory);
   });
 }
 

@@ -32,6 +32,10 @@ const IPC_CHANNELS = {
   CREATE_MCP: 'mcps:create',
   UPDATE_MCP: 'mcps:update',
   DELETE_MCP: 'mcps:delete',
+  CREATE_CHECKPOINT: 'checkpoint:create',
+  GET_CHECKPOINTS: 'checkpoint:get-all',
+  RESTORE_CHECKPOINT: 'checkpoint:restore',
+  GET_CHECKPOINT_STATUS: 'checkpoint:status',
 } as const;
 
 // Expose protected methods that allow the renderer process to use
@@ -98,4 +102,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.UPDATE_MCP, { sessionId, oldName, mcp }),
   deleteMCP: (sessionId: string, name: string, scope: 'project' | 'personal') =>
     ipcRenderer.invoke(IPC_CHANNELS.DELETE_MCP, { sessionId, name, scope }),
+
+  // Checkpoints
+  createCheckpoint: (sessionId: string, message: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CREATE_CHECKPOINT, { sessionId, message }),
+  getCheckpoints: (sessionId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_CHECKPOINTS, sessionId),
+  restoreCheckpoint: (sessionId: string, checkpointHash: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.RESTORE_CHECKPOINT, { sessionId, checkpointHash }),
+  getCheckpointStatus: (sessionId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_CHECKPOINT_STATUS, sessionId),
 });

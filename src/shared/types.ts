@@ -167,6 +167,13 @@ export interface MCPServer {
   source: MCPScope;
 }
 
+export interface Checkpoint {
+  hash: string;
+  message: string;
+  timestamp: string;
+  author: string;
+}
+
 // IPC Channel names
 export const IPC_CHANNELS = {
   // Session management
@@ -220,6 +227,12 @@ export const IPC_CHANNELS = {
   CREATE_MCP: 'mcps:create',
   UPDATE_MCP: 'mcps:update',
   DELETE_MCP: 'mcps:delete',
+
+  // Checkpoints
+  CREATE_CHECKPOINT: 'checkpoint:create',
+  GET_CHECKPOINTS: 'checkpoint:get-all',
+  RESTORE_CHECKPOINT: 'checkpoint:restore',
+  GET_CHECKPOINT_STATUS: 'checkpoint:status',
 } as const;
 
 // Window API type for TypeScript
@@ -256,6 +269,10 @@ declare global {
       createMCP: (sessionId: string, mcp: Omit<MCPServer, 'source'>, scope: MCPScope) => Promise<void>;
       updateMCP: (sessionId: string, oldName: string, mcp: MCPServer) => Promise<void>;
       deleteMCP: (sessionId: string, name: string, scope: MCPScope) => Promise<void>;
+      createCheckpoint: (sessionId: string, message: string) => Promise<void>;
+      getCheckpoints: (sessionId: string) => Promise<Checkpoint[]>;
+      restoreCheckpoint: (sessionId: string, checkpointHash: string) => Promise<void>;
+      getCheckpointStatus: (sessionId: string) => Promise<{ isGitRepo: boolean; hasChanges: boolean }>;
     };
   }
 }
