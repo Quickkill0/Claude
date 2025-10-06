@@ -12,6 +12,9 @@ const RestoreModal: React.FC<RestoreModalProps> = ({ session, onClose }) => {
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
 
   useEffect(() => {
     loadCheckpoints();
@@ -39,32 +42,34 @@ const RestoreModal: React.FC<RestoreModalProps> = ({ session, onClose }) => {
     }
   };
 
-  const handleRestore = async (checkpointHash: string) => {
-    if (restoring) return;
+  const handleRestoreClick = () => {
+    if (restoring || !selectedCheckpoint) return;
+    setShowConfirmDialog(true);
+  };
 
-    const confirmed = confirm(
-      'Are you sure you want to restore to this checkpoint?\n\n' +
-      'This will reset your code to the state at this checkpoint. ' +
-      'Current uncommitted changes will be stashed.\n\n' +
-      'All checkpoints up to this one will also be accessible for navigation.'
-    );
+  const handleConfirmRestore = async () => {
+    if (!selectedCheckpoint) return;
 
-    if (!confirmed) return;
+    setShowConfirmDialog(false);
 
     try {
       setRestoring(true);
-      console.log('[RestoreModal] Restoring to checkpoint:', checkpointHash);
+      console.log('[RestoreModal] Restoring to checkpoint:', selectedCheckpoint);
 
-      await window.electronAPI.restoreCheckpoint(session.id, checkpointHash);
+      await window.electronAPI.restoreCheckpoint(session.id, selectedCheckpoint);
 
-      alert('Successfully restored to checkpoint!');
-      onClose();
+      setShowSuccessDialog(true);
     } catch (error) {
       console.error('[RestoreModal] Failed to restore checkpoint:', error);
-      alert('Failed to restore checkpoint. Check console for details.');
+      setShowErrorDialog(true);
     } finally {
       setRestoring(false);
     }
+  };
+
+  const handleSuccessClose = () => {
+    setShowSuccessDialog(false);
+    onClose();
   };
 
   const formatDate = (timestamp: string) => {
@@ -88,7 +93,7 @@ const RestoreModal: React.FC<RestoreModalProps> = ({ session, onClose }) => {
           <h2>🔖 Restore from Checkpoint</h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
-        <div className="modal-body">
+        <div className="modal-body" style={{ maxHeight: '500px', overflowY: 'auto' }}>
           {loading ? (
             <div className="history-loading">Loading checkpoints...</div>
           ) : !isGitRepo ? (
@@ -119,7 +124,7 @@ const RestoreModal: React.FC<RestoreModalProps> = ({ session, onClose }) => {
                   key={checkpoint.hash}
                   className={`history-item ${selectedCheckpoint === checkpoint.hash ? 'selected' : ''}`}
                   onClick={() => setSelectedCheckpoint(checkpoint.hash)}
-                  onDoubleClick={() => handleRestore(checkpoint.hash)}
+                  onDoubleClick={handleRestoreClick}
                 >
                   <div className="history-item-header">
                     <span className="history-item-date">
@@ -139,16 +144,10 @@ const RestoreModal: React.FC<RestoreModalProps> = ({ session, onClose }) => {
           )}
         </div>
         {!loading && isGitRepo && checkpoints.length > 0 && selectedCheckpoint && (
-          <div className="modal-footer">
-            <button
-              className="btn outlined"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
+          <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '16px', paddingBottom: '16px' }}>
             <button
               className="btn primary"
-              onClick={() => handleRestore(selectedCheckpoint)}
+              onClick={handleRestoreClick}
               disabled={restoring}
             >
               {restoring ? 'Restoring...' : 'Restore to Selected Checkpoint'}
@@ -156,6 +155,86 @@ const RestoreModal: React.FC<RestoreModalProps> = ({ session, onClose }) => {
           </div>
         )}
       </div>
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && (
+        <div className="modal-overlay" style={{ zIndex: 1001 }}>
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>⚠️ Confirm Restore</h2>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to restore to this checkpoint?</p>
+              <br />
+              <p><strong>This will:</strong></p>
+              <ul style={{ textAlign: 'left', marginLeft: '20px', marginTop: '10px' }}>
+                <li>Reset your code to the state at this checkpoint</li>
+                <li>Stash any uncommitted changes</li>
+                <li>Keep all checkpoints accessible for navigation</li>
+              </ul>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingRight: '16px', paddingBottom: '16px' }}>
+              <button
+                className="btn outlined"
+                onClick={() => setShowConfirmDialog(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn primary"
+                onClick={handleConfirmRestore}
+              >
+                Restore Checkpoint
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Dialog */}
+      {showSuccessDialog && (
+        <div className="modal-overlay" style={{ zIndex: 1001 }}>
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h2>✅ Success</h2>
+            </div>
+            <div className="modal-body">
+              <p>Successfully restored to checkpoint!</p>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '16px', paddingBottom: '16px' }}>
+              <button
+                className="btn primary"
+                onClick={handleSuccessClose}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Dialog */}
+      {showErrorDialog && (
+        <div className="modal-overlay" style={{ zIndex: 1001 }}>
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h2>❌ Error</h2>
+            </div>
+            <div className="modal-body">
+              <p>Failed to restore checkpoint.</p>
+              <p>Check the console for details.</p>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '16px', paddingBottom: '16px' }}>
+              <button
+                className="btn primary"
+                onClick={() => setShowErrorDialog(false)}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
