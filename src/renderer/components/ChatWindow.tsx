@@ -6,6 +6,7 @@ import HistoryModal from './HistoryModal';
 import RestoreModal from './RestoreModal';
 import SlashCommandAutocomplete from './SlashCommandAutocomplete';
 import AgentManagementModal from './AgentManagementModal';
+import MCPManagementModal from './MCPManagementModal';
 import { CommandHandler } from '../utils/commandHandler';
 
 // Crypto for generating UUIDs
@@ -16,7 +17,7 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
-  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadConversation, toggleThinkingMode, togglePlanMode, toggleNoCodeMode } = useSessionStore();
+  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadConversation, toggleThinkingMode, togglePlanMode, toggleChatMode } = useSessionStore();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -29,6 +30,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
   const [autocompleteQuery, setAutocompleteQuery] = useState('');
   const [autocompletePosition, setAutocompletePosition] = useState({ top: 0, left: 0 });
   const [showAgentModal, setShowAgentModal] = useState(false);
+  const [showMCPModal, setShowMCPModal] = useState(false);
 
   const sessionMessages = messages.get(session.id) || [];
   const inputText = getInputText(session.id);
@@ -118,6 +120,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
       case 'open-modal':
         if (action.modal === 'agents') {
           setShowAgentModal(true);
+        } else if (action.modal === 'mcp') {
+          setShowMCPModal(true);
         }
         break;
       case 'not-supported':
@@ -302,8 +306,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
     togglePlanMode(session.id);
   };
 
-  const handleToggleNoCode = () => {
-    toggleNoCodeMode(session.id);
+  const handleToggleChat = () => {
+    toggleChatMode(session.id);
   };
 
   // Load slash commands when session changes
@@ -456,10 +460,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
             📋
           </button>
           <button
-            className={`btn-nocode-toggle ${session.noCodeMode ? 'active' : ''}`}
-            onClick={handleToggleNoCode}
+            className={`btn-chat-toggle ${session.chatMode ? 'active' : ''}`}
+            onClick={handleToggleChat}
             disabled={session.isProcessing}
-            title={session.noCodeMode ? 'No code mode: ON' : 'No code mode: OFF'}
+            title={session.chatMode ? 'Chat mode: ON' : 'Chat mode: OFF'}
           >
             💬
           </button>
@@ -514,6 +518,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
         <AgentManagementModal
           sessionId={session.id}
           onClose={() => setShowAgentModal(false)}
+        />
+      )}
+
+      {showMCPModal && (
+        <MCPManagementModal
+          sessionId={session.id}
+          onClose={() => setShowMCPModal(false)}
         />
       )}
     </div>

@@ -1958,8 +1958,8 @@ body {
   cursor: not-allowed;
 }
 
-/* No Code Toggle Button */
-.btn-nocode-toggle {
+/* Chat Mode Toggle Button */
+.btn-chat-toggle {
   background: transparent;
   border: none;
   padding: 0;
@@ -1977,20 +1977,20 @@ body {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
 
-.btn-nocode-toggle.active {
+.btn-chat-toggle.active {
   opacity: 1;
 }
 
-.btn-nocode-toggle:hover:not(:disabled) {
+.btn-chat-toggle:hover:not(:disabled) {
   opacity: 1;
   transform: scale(1.1);
 }
 
-.btn-nocode-toggle:active:not(:disabled) {
+.btn-chat-toggle:active:not(:disabled) {
   transform: scale(0.95);
 }
 
-.btn-nocode-toggle:disabled {
+.btn-chat-toggle:disabled {
   opacity: 0.3;
   cursor: not-allowed;
 }

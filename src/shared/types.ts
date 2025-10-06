@@ -15,7 +15,7 @@ export interface Session {
   yoloMode?: boolean;
   thinkingMode?: boolean;
   planMode?: boolean;
-  noCodeMode?: boolean;
+  chatMode?: boolean;
   sessionPermissions?: PermissionRule[];
   totalCost?: number;
   tokenUsage?: {
@@ -91,7 +91,7 @@ export interface SessionConfig {
   yoloMode?: boolean;
   thinkingMode?: boolean;
   planMode?: boolean;
-  noCodeMode?: boolean;
+  chatMode?: boolean;
 }
 
 export interface PermissionRule {

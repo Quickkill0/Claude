@@ -26,7 +26,7 @@ interface SessionStore {
   toggleYoloMode: (sessionId: string) => void;
   toggleThinkingMode: (sessionId: string) => void;
   togglePlanMode: (sessionId: string) => void;
-  toggleNoCodeMode: (sessionId: string) => void;
+  toggleChatMode: (sessionId: string) => void;
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => void;
   respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean, alwaysDeny?: boolean) => Promise<void>;
   removeSessionPermission: (sessionId: string, index: number) => Promise<void>;
@@ -186,9 +186,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         ...(updatedSession?.planMode && { planMode: true }),
       };
 
-      // Prepend no code mode instructions if active
+      // Prepend Chat mode instructions if active
       let messageToSend = message;
-      if (updatedSession?.noCodeMode) {
+      if (updatedSession?.chatMode) {
         messageToSend = 'DO NOT CODE ANYTHING. You are in chat-only mode. If the user asks you to create, edit, write, or modify any code or files, kindly explain that you cannot perform coding actions in this mode, but you can describe the steps needed or explain how to accomplish their goal. User message: ' + message;
       }
 
@@ -547,18 +547,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     await window.electronAPI.updateSession(sessionId, { planMode: newPlanMode });
   },
 
-  toggleNoCodeMode: async (sessionId: string) => {
+  toggleChatMode: async (sessionId: string) => {
     const session = get().sessions.find(s => s.id === sessionId);
-    const newNoCodeMode = !session?.noCodeMode;
+    const newChatMode = !session?.chatMode;
 
     set((state) => ({
       sessions: state.sessions.map((s) =>
-        s.id === sessionId ? { ...s, noCodeMode: newNoCodeMode } : s
+        s.id === sessionId ? { ...s, chatMode: newChatMode } : s
       ),
     }));
 
     // Save updated session metadata to backend
-    await window.electronAPI.updateSession(sessionId, { noCodeMode: newNoCodeMode });
+    await window.electronAPI.updateSession(sessionId, { chatMode: newChatMode });
   },
 
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => {

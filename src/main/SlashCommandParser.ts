@@ -46,7 +46,7 @@ export class SlashCommandParser {
     { name: 'init', description: 'Initialize project (CLI only)', source: 'builtin', content: '/init' },
     { name: 'login', description: 'Switch Anthropic accounts (CLI only)', source: 'builtin', content: '/login' },
     { name: 'logout', description: 'Sign out (CLI only)', source: 'builtin', content: '/logout' },
-    { name: 'mcp', description: 'Manage MCP servers (CLI only)', source: 'builtin', content: '/mcp' },
+    { name: 'mcp', description: 'Manage MCP servers', source: 'builtin', content: '/mcp' },
     { name: 'pr_comments', description: 'View PR comments (CLI only)', argumentHint: '[pr-number]', source: 'builtin', content: '/pr_comments $ARGUMENTS' },
     { name: 'review', description: 'Request code review (CLI only)', source: 'builtin', content: '/review' },
     { name: 'rewind', description: 'Rewind conversation (CLI only)', source: 'builtin', content: '/rewind' },

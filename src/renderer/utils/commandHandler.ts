@@ -5,7 +5,7 @@ export interface CommandAction {
   action?: string;
   message?: string;
   data?: any;
-  modal?: 'agents' | 'settings' | 'permissions';
+  modal?: 'agents' | 'settings' | 'permissions' | 'mcp';
 }
 
 /**
@@ -18,7 +18,7 @@ export class CommandHandler {
   static canHandle(commandName: string): boolean {
     const handledCommands = [
       'clear', 'model', 'cost', 'config', 'permissions',
-      'status', 'help', 'memory', 'agents'
+      'status', 'help', 'memory', 'agents', 'mcp'
     ];
     return handledCommands.includes(commandName);
   }
@@ -106,6 +106,13 @@ export class CommandHandler {
           message: 'Opening agent management...'
         };
 
+      case 'mcp':
+        return {
+          type: 'open-modal',
+          modal: 'mcp',
+          message: 'Opening MCP server management...'
+        };
+
       // Not supported in UI context
       case 'bug':
       case 'compact':
@@ -113,7 +120,6 @@ export class CommandHandler {
       case 'init':
       case 'login':
       case 'logout':
-      case 'mcp':
       case 'pr_comments':
       case 'review':
       case 'rewind':
@@ -153,9 +159,10 @@ Create custom slash commands in \`.claude/commands/\` directory as markdown file
 
 **Available UI Modals:**
 • \`/agents\` - Manage custom AI subagents
+• \`/mcp\` - Manage MCP servers
 
 **CLI-Only Commands:**
 The following commands require the Claude Code CLI and are not available in the UI:
-\`/bug\`, \`/compact\`, \`/doctor\`, \`/init\`, \`/login\`, \`/logout\`, \`/mcp\`, \`/pr_comments\`, \`/review\`, \`/rewind\`, \`/terminal-setup\`, \`/vim\``;
+\`/bug\`, \`/compact\`, \`/doctor\`, \`/init\`, \`/login\`, \`/logout\`, \`/pr_comments\`, \`/review\`, \`/rewind\`, \`/terminal-setup\`, \`/vim\``;
   }
 }
