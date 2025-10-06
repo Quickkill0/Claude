@@ -31,6 +31,7 @@ export class MultiSessionManager {
 
   /**
    * Sets up PreToolUse hooks for permission handling in the session's working directory
+   * Writes hooks to settings.gui.json (GUI-only) to avoid interfering with CLI usage
    */
   private async setupPermissionHooks(sessionId: string): Promise<void> {
     const activeSession = this.sessions.get(sessionId);
@@ -39,7 +40,7 @@ export class MultiSessionManager {
     const workingDir = activeSession.session.workingDirectory;
     const claudeDir = path.join(workingDir, '.claude');
     const hooksDir = path.join(claudeDir, 'hooks');
-    const settingsFile = path.join(claudeDir, 'settings.local.json');
+    const guiSettingsFile = path.join(claudeDir, 'settings.gui.json');
 
     // Create directories if they don't exist
     if (!fs.existsSync(claudeDir)) {
@@ -59,25 +60,25 @@ export class MultiSessionManager {
       console.log('[HOOKS] Copied permission-proxy.py to:', proxyScriptDest);
     }
 
-    // Read existing settings or create new
-    let settings: any = {};
-    if (fs.existsSync(settingsFile)) {
+    // Read existing GUI settings or create new
+    let guiSettings: any = {};
+    if (fs.existsSync(guiSettingsFile)) {
       try {
-        settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
-        console.log('[HOOKS] Found existing settings.local.json, preserving existing configuration');
+        guiSettings = JSON.parse(fs.readFileSync(guiSettingsFile, 'utf8'));
+        console.log('[HOOKS] Found existing settings.gui.json, preserving existing configuration');
       } catch (error) {
-        console.error('[HOOKS] Error reading settings.local.json:', error);
-        settings = {};
+        console.error('[HOOKS] Error reading settings.gui.json:', error);
+        guiSettings = {};
       }
     }
 
-    // Preserve existing hooks configuration and only update PreToolUse
-    if (!settings.hooks) {
-      settings.hooks = {};
+    // Configure PreToolUse hook for GUI
+    if (!guiSettings.hooks) {
+      guiSettings.hooks = {};
     }
 
     // Add/update only the PreToolUse hook, preserving any other hooks
-    settings.hooks.PreToolUse = [{
+    guiSettings.hooks.PreToolUse = [{
       matcher: "*",
       hooks: [{
         type: "command",
@@ -86,9 +87,9 @@ export class MultiSessionManager {
       }]
     }];
 
-    // Write settings back (preserves all existing settings including permissions)
-    fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
-    console.log('[HOOKS] Configured PreToolUse hooks in:', settingsFile);
+    // Write GUI settings (hooks only, permissions stay in settings.local.json)
+    fs.writeFileSync(guiSettingsFile, JSON.stringify(guiSettings, null, 2));
+    console.log('[HOOKS] Configured PreToolUse hooks in:', guiSettingsFile);
   }
 
   /**
@@ -770,6 +771,10 @@ export class MultiSessionManager {
    */
   private buildClaudeArgs(session: Session, config?: SessionConfig, permissionsPath?: string, sessionId?: string): string[] {
     const args = ['-p', '--output-format', 'stream-json', '--verbose'];
+
+    // Add GUI-specific settings file for hooks
+    // This allows CLI users to use the same folder without hook interference
+    args.push('--settings', '.claude/settings.gui.json');
 
     // Add model if specified
     const model = config?.model || session.model;
