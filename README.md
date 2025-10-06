@@ -8,6 +8,36 @@ A standalone Windows desktop application for managing multiple Claude Code CLI s
 
 Claude Desktop is a comprehensive desktop application that provides a powerful graphical interface for managing multiple Claude Code CLI sessions simultaneously. Unlike IDE-dependent solutions, this standalone application gives you complete control over multiple AI coding sessions with advanced features like permission management, git checkpoints, MCP server configuration, and more.
 
+![Main Application](docs/screenshots/main-application.png)
+*Multi-session interface with sidebar, chat window, and file browser*
+
+## Screenshots
+
+<div align="center">
+
+### Multi-Session Management
+![Sessions](docs/screenshots/sessions.png)
+
+### Permission System
+![Permissions](docs/screenshots/permissions.png)
+
+### Conversation History
+![History](docs/screenshots/history.png)
+
+### Agent Management
+![Agents](docs/screenshots/agents.png)
+
+### MCP Server Configuration
+![MCP](docs/screenshots/mcp.png)
+
+### Git Checkpoints
+![Checkpoints](docs/screenshots/checkpoints.png)
+
+### File Browser
+![File Browser](docs/screenshots/file-browser.png)
+
+</div>
+
 ## Key Features
 
 ### 🔀 Multi-Session Management
