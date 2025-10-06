@@ -246,6 +246,27 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             set({ messages });
           }
         }
+
+        // If this is an ExitPlanMode tool result, automatically turn off plan mode
+        if (data.message.type === 'tool-result') {
+          const messages = new Map(get().messages);
+          const sessionMessages = messages.get(sessionId) || [];
+
+          // Find the matching tool message to check if it's ExitPlanMode
+          const toolMessage = sessionMessages.find(m =>
+            m.type === 'tool' &&
+            m.metadata?.toolUseId === data.message.metadata?.toolUseId &&
+            m.metadata?.toolName === 'ExitPlanMode'
+          );
+
+          if (toolMessage) {
+            // Automatically disable plan mode
+            const session = get().sessions.find(s => s.id === sessionId);
+            if (session?.planMode) {
+              get().togglePlanMode(sessionId);
+            }
+          }
+        }
       }
     } else if (data.type === 'system' && data.subtype === 'message-update') {
       // Message update (streaming delta)
