@@ -164,25 +164,18 @@ export class MessageRenderer {
     const isExpanded = config.expandedContent?.has(`write-${messageId}`) ?? false;
     const displayContent = isExpanded ? fileContent : truncated;
 
-    // Extract file name and directory
+    // Extract file extension for syntax highlighting
     const fileName = file_path.split(/[/\\]/).pop() || file_path;
     const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'text';
 
     return (
       <div className="write-tool-content">
-        <div
-          className="write-file-header"
-          onClick={() => config.onOpenFile?.(file_path)}
-        >
-          <div className="file-icon">📄</div>
-          <div className="file-info">
-            <div className="file-name-display">{fileName}</div>
-            <div className="file-path-full">{file_path}</div>
-          </div>
+        <div className="write-file-path">
+          {this.renderFilePathButton(file_path, undefined, 'medium', config.onOpenFile)}
         </div>
-        <div className="write-preview">
+        <div className="write-preview-section">
           <div className="write-preview-header">
-            <span className="preview-label">Preview</span>
+            <span className="preview-label">PREVIEW</span>
             <button
               className="copy-code-button"
               onClick={() => config.onCopyCode?.(fileContent, `write-${messageId}`)}
@@ -196,7 +189,7 @@ export class MessageRenderer {
             language={fileExtension}
             showLineNumbers
             PreTag="div"
-            customStyle={{ margin: 0, borderRadius: '0 0 4px 4px', fontSize: '12px' }}
+            customStyle={{ margin: 0, fontSize: '12px' }}
           >
             {displayContent}
           </SyntaxHighlighter>
@@ -751,7 +744,61 @@ export class MessageRenderer {
   }
 
   /**
-   * Render tool result content
+   * Detect if content looks like code output with line numbers (cat -n format)
+   */
+  static detectLineNumberedContent(content: string): { hasLineNumbers: boolean; language?: string } {
+    const lines = content.split('\n').filter(line => line.trim());
+    if (lines.length < 3) return { hasLineNumbers: false };
+
+    // Check if most lines start with line numbers (format: "   123\t")
+    const lineNumberPattern = /^\s+\d+\t/;
+    const linesWithNumbers = lines.filter(line => lineNumberPattern.test(line)).length;
+    const ratio = linesWithNumbers / lines.length;
+
+    if (ratio > 0.7) {
+      // Try to detect language from content
+      const firstLine = lines[0].replace(lineNumberPattern, '').trim();
+
+      // Check for common language patterns
+      if (firstLine.match(/^(import|from|def|class)\s/) || content.includes('def ') || content.includes('import ')) {
+        return { hasLineNumbers: true, language: 'python' };
+      } else if (firstLine.match(/^(const|let|var|function|class|import|export)\s/) || content.includes('=>')) {
+        return { hasLineNumbers: true, language: 'javascript' };
+      } else if (firstLine.match(/^(package|import|func|type|var)\s/)) {
+        return { hasLineNumbers: true, language: 'go' };
+      } else if (firstLine.match(/^(use|fn|impl|struct|enum)\s/)) {
+        return { hasLineNumbers: true, language: 'rust' };
+      } else if (content.includes('<?php') || firstLine.match(/^(namespace|class|function|public|private)\s/)) {
+        return { hasLineNumbers: true, language: 'php' };
+      } else if (content.includes('<html') || content.includes('<!DOCTYPE') || firstLine.match(/^<\w+/)) {
+        return { hasLineNumbers: true, language: 'html' };
+      } else if (content.includes('{') && content.includes('}') && (firstLine.match(/^[\w-]+\s*{/) || content.includes('font-') || content.includes('color:'))) {
+        return { hasLineNumbers: true, language: 'css' };
+      }
+
+      return { hasLineNumbers: true };
+    }
+
+    return { hasLineNumbers: false };
+  }
+
+  /**
+   * Detect if content looks like a file listing
+   */
+  static detectFileListing(content: string): boolean {
+    const lines = content.split('\n').filter(line => line.trim());
+    if (lines.length < 2) return false;
+
+    // Check if most lines look like file paths
+    const filePathPattern = /^[^\s]+\.(ts|tsx|js|jsx|py|go|rs|java|c|cpp|h|css|scss|html|json|yaml|yml|md|txt|sh|xml|php|rb|cs|swift)/i;
+    const linesLikeFiles = lines.filter(line => filePathPattern.test(line.trim())).length;
+    const ratio = linesLikeFiles / lines.length;
+
+    return ratio > 0.6;
+  }
+
+  /**
+   * Render tool result content with improved parsing
    */
   static renderToolResult(content: string, isJson: boolean): JSX.Element {
     if (isJson) {
@@ -760,13 +807,60 @@ export class MessageRenderer {
           style={vscDarkPlus}
           language="json"
           PreTag="div"
-          customStyle={{ margin: 0, borderRadius: '4px' }}
+          customStyle={{ margin: 0, borderRadius: '4px', fontSize: '12px' }}
+          showLineNumbers
         >
           {content}
         </SyntaxHighlighter>
       );
     }
 
+    // Check if content has line numbers (like cat -n output)
+    const lineNumberInfo = this.detectLineNumberedContent(content);
+    if (lineNumberInfo.hasLineNumbers) {
+      // Remove line numbers for syntax highlighting
+      const cleanContent = content.split('\n')
+        .map(line => line.replace(/^\s+\d+\t/, ''))
+        .join('\n');
+
+      return (
+        <SyntaxHighlighter
+          style={vscDarkPlus}
+          language={lineNumberInfo.language || 'text'}
+          PreTag="div"
+          customStyle={{ margin: 0, borderRadius: '4px', fontSize: '12px' }}
+          showLineNumbers
+        >
+          {cleanContent}
+        </SyntaxHighlighter>
+      );
+    }
+
+    // Check if content is a file listing
+    if (this.detectFileListing(content)) {
+      const files = content.split('\n').filter(line => line.trim());
+      return (
+        <div className="file-listing-result">
+          <div className="file-listing-header">
+            <span className="file-icon">📁</span>
+            <span className="file-count">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="file-listing-content">
+            {files.map((file, idx) => {
+              const fileName = file.trim();
+              return (
+                <div key={idx} className="file-listing-item">
+                  <span className="file-icon">{getFileIcon(fileName)}</span>
+                  <span className="file-name">{fileName}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // Default: render as markdown with code block support
     return (
       <ReactMarkdown
         components={{
@@ -778,7 +872,8 @@ export class MessageRenderer {
                 style={vscDarkPlus}
                 language={match[1]}
                 PreTag="div"
-                customStyle={{ margin: 0 }}
+                customStyle={{ margin: 0, fontSize: '12px' }}
+                showLineNumbers
                 {...props}
               >
                 {codeString}
