@@ -149,6 +149,14 @@ async function initializeManagers() {
 async function handlePermissionRequest(sessionId: string, tool: string, filePath: string, message: string, input?: any): Promise<{ allowed: boolean; alwaysAllow?: boolean }> {
   console.log('[PERMISSION REQUEST]', { sessionId, tool, filePath, message, input });
 
+  // Check if session has yolo mode enabled - auto-approve if so
+  const sessions = sessionManager.getAllSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  if (session?.yoloMode) {
+    console.log('[PERMISSION] Auto-approving due to YOLO mode');
+    return { allowed: true, alwaysAllow: false };
+  }
+
   // Check always-allow permissions first
   const settings = await persistenceManager.getSettings();
   const isAllowed = settings.alwaysAllowPermissions.some(rule => {
