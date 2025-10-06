@@ -6,6 +6,6 @@ release/
 .DS_Store
 .env
 *.vsix
-/.claude
+/.claude*
 /.ab-method
 /docs
