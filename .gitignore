@@ -8,3 +8,4 @@ release/
 *.vsix
 /.claude
 /.ab-method
+/docs
