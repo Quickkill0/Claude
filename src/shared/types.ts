@@ -176,6 +176,14 @@ export interface Checkpoint {
   author: string;
 }
 
+export interface FileItem {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  size?: number;
+  modifiedTime?: string;
+}
+
 // IPC Channel names
 export const IPC_CHANNELS = {
   // Session management
@@ -235,6 +243,13 @@ export const IPC_CHANNELS = {
   GET_CHECKPOINTS: 'checkpoint:get-all',
   RESTORE_CHECKPOINT: 'checkpoint:restore',
   GET_CHECKPOINT_STATUS: 'checkpoint:status',
+
+  // File Operations
+  LIST_FILES: 'files:list',
+  DELETE_FILE: 'files:delete',
+  RENAME_FILE: 'files:rename',
+  COPY_FILE: 'files:copy',
+  CREATE_FOLDER: 'files:create-folder',
 } as const;
 
 // Window API type for TypeScript
@@ -275,6 +290,11 @@ declare global {
       getCheckpoints: (sessionId: string) => Promise<Checkpoint[]>;
       restoreCheckpoint: (sessionId: string, checkpointHash: string) => Promise<void>;
       getCheckpointStatus: (sessionId: string) => Promise<{ isGitRepo: boolean; hasChanges: boolean }>;
+      listFiles: (sessionId: string, relativePath?: string) => Promise<FileItem[]>;
+      deleteFile: (sessionId: string, relativePath: string) => Promise<void>;
+      renameFile: (sessionId: string, oldPath: string, newName: string) => Promise<void>;
+      copyFile: (sessionId: string, sourcePath: string, destPath: string) => Promise<void>;
+      createFolder: (sessionId: string, relativePath: string, folderName: string) => Promise<void>;
     };
   }
 }

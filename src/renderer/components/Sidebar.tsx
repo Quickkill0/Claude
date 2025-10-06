@@ -5,6 +5,7 @@ import SettingsModal from './SettingsModal';
 import SessionSettingsModal from './SessionSettingsModal';
 import AgentManagementModal from './AgentManagementModal';
 import MCPManagementModal from './MCPManagementModal';
+import FileTree from './FileTree';
 
 const Sidebar: React.FC = () => {
   const { sessions, activeSessionId, createSession, switchSession, deleteSession, isSidebarOpen, toggleSidebar, toggleYoloMode, updateSessionModel, removeSessionPermission } = useSessionStore();
@@ -13,6 +14,7 @@ const Sidebar: React.FC = () => {
   const [sessionSettingsId, setSessionSettingsId] = useState<string | null>(null);
   const [showAgents, setShowAgents] = useState(false);
   const [showMCPs, setShowMCPs] = useState(false);
+  const [fileTreeSessionId, setFileTreeSessionId] = useState<string | null>(null);
 
   // Render collapsed sidebar when closed
   if (!isSidebarOpen) {
@@ -89,50 +91,84 @@ const Sidebar: React.FC = () => {
         ) : (
           <div className="session-list">
             {sessions.map((session) => (
-              <div
-                key={session.id}
-                className={`session-item ${session.id === activeSessionId ? 'active' : ''} ${session.isProcessing ? 'processing' : ''}`}
-              >
-                <div className="session-item-actions">
-                  <button
-                    className="session-settings-button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSessionSettingsId(session.id);
-                    }}
-                    title="Session settings"
-                  >
-                    ⚙️
-                  </button>
-                  <button
-                    className={`session-yolo-toggle ${session.yoloMode ? 'active' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleYoloMode(session.id);
-                    }}
-                    title={session.yoloMode ? 'YOLO mode enabled (permissions bypassed)' : 'YOLO mode disabled'}
-                  >
-                    {session.yoloMode ? '🚀' : '🔒'}
-                  </button>
-                  <button
-                    className="session-item-close"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSessionToDelete({ id: session.id, name: session.name });
-                    }}
-                    title="Close session"
-                  >
-                    ×
-                  </button>
-                </div>
+              <div key={session.id}>
                 <div
-                  className="session-item-content"
-                  onClick={() => switchSession(session.id)}
+                  className={`session-item ${session.id === activeSessionId ? 'active' : ''} ${session.isProcessing ? 'processing' : ''}`}
                 >
-                  <div className="session-item-info">
-                    <div className={`session-item-name ${session.isProcessing ? 'processing' : ''}`}>{session.name}</div>
+                  <div className="session-item-actions">
+                    <button
+                      className="session-folder-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        switchSession(session.id);
+                        setFileTreeSessionId(fileTreeSessionId === session.id ? null : session.id);
+                      }}
+                      title="File explorer"
+                    >
+                      📁
+                    </button>
+                    <button
+                      className="session-settings-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (session.id !== activeSessionId) {
+                          setFileTreeSessionId(null);
+                        }
+                        switchSession(session.id);
+                        setSessionSettingsId(session.id);
+                      }}
+                      title="Session settings"
+                    >
+                      ⚙️
+                    </button>
+                    <button
+                      className={`session-yolo-toggle ${session.yoloMode ? 'active' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (session.id !== activeSessionId) {
+                          setFileTreeSessionId(null);
+                        }
+                        switchSession(session.id);
+                        toggleYoloMode(session.id);
+                      }}
+                      title={session.yoloMode ? 'YOLO mode enabled (permissions bypassed)' : 'YOLO mode disabled'}
+                    >
+                      {session.yoloMode ? '🚀' : '🔒'}
+                    </button>
+                    <button
+                      className="session-item-close"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (session.id !== activeSessionId) {
+                          setFileTreeSessionId(null);
+                        }
+                        switchSession(session.id);
+                        setSessionToDelete({ id: session.id, name: session.name });
+                      }}
+                      title="Close session"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div
+                    className="session-item-content"
+                    onClick={() => {
+                      if (session.id !== activeSessionId) {
+                        setFileTreeSessionId(null);
+                      }
+                      switchSession(session.id);
+                    }}
+                  >
+                    <div className="session-item-info">
+                      <div className={`session-item-name ${session.isProcessing ? 'processing' : ''}`}>{session.name}</div>
+                    </div>
                   </div>
                 </div>
+                {fileTreeSessionId === session.id && (
+                  <div className="session-file-tree">
+                    <FileTree sessionId={session.id} />
+                  </div>
+                )}
               </div>
             ))}
           </div>

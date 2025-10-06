@@ -2921,6 +2921,314 @@ body {
   }
 }
 
+/* Session Folder Button */
+.session-folder-button {
+  width: 24px;
+  height: 24px;
+  background: var(--bg-overlay);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.session-folder-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.session-folder-button:hover {
+  border-color: var(--accent-blue);
+  background: var(--bg-overlay);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-primary);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.15), 0 4px 12px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+}
+
+.session-folder-button:hover::before {
+  left: 100%;
+}
+
+/* File Tree Styles */
+.session-file-tree {
+  margin-top: 8px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+.file-tree {
+  display: flex;
+  flex-direction: column;
+  max-height: 400px;
+  overflow: hidden;
+}
+
+.file-tree-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.file-tree-navigation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.file-tree-back-btn {
+  width: 24px;
+  height: 24px;
+  background: var(--bg-overlay);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-tree-back-btn:hover {
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
+  transform: translateX(-2px);
+}
+
+.file-tree-path {
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.file-tree-action-btn {
+  width: 24px;
+  height: 24px;
+  background: var(--bg-overlay);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-tree-action-btn:hover {
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
+}
+
+.file-tree-error {
+  padding: 8px;
+  background: rgba(220, 53, 69, 0.1);
+  color: #dc3545;
+  font-size: 11px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(220, 53, 69, 0.2);
+}
+
+.file-tree-error button {
+  background: none;
+  border: none;
+  color: #dc3545;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.file-tree-loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.file-tree-list {
+  overflow-y: auto;
+  max-height: 300px;
+}
+
+.file-tree-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.file-tree-item {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.2s ease;
+}
+
+.file-tree-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.file-tree-item.cut {
+  opacity: 0.5;
+}
+
+.file-tree-item-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.file-tree-item-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.file-tree-item-name {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-item-size {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.file-tree-rename,
+.file-tree-create-folder {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+}
+
+.file-tree-rename input,
+.file-tree-create-folder input {
+  flex: 1;
+  padding: 4px 6px;
+  background: var(--bg-overlay);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.file-tree-rename button,
+.file-tree-create-folder button {
+  width: 20px;
+  height: 20px;
+  background: var(--bg-overlay);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-tree-rename button:hover,
+.file-tree-create-folder button:hover {
+  border-color: var(--accent-blue);
+  color: var(--text-primary);
+}
+
+.file-tree-context-menu {
+  position: fixed;
+  background: var(--bg-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  z-index: 10000;
+  min-width: 120px;
+}
+
+.file-tree-context-menu button {
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.file-tree-context-menu button:last-child {
+  border-bottom: none;
+}
+
+.file-tree-context-menu button:hover {
+  background: var(--bg-tertiary);
+}
+
+.file-tree-context-menu button.danger {
+  color: #dc3545;
+}
+
+.file-tree-context-menu button.danger:hover {
+  background: rgba(220, 53, 69, 0.1);
+}
+
 /* Improved Message UI Styles */
 
 

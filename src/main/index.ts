@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as fs from 'fs/promises';
 import { MultiSessionManager } from './MultiSessionManager';
 import { PersistenceManager } from './PersistenceManager';
 import { SlashCommandParser } from './SlashCommandParser';
@@ -8,7 +9,7 @@ import { AgentParser } from './AgentParser';
 import { MCPParser } from './MCPParser';
 import { PermissionServer } from './PermissionServer';
 import { CheckpointManager } from './CheckpointManager';
-import { IPC_CHANNELS, PermissionRequest } from '../shared/types';
+import { IPC_CHANNELS, PermissionRequest, FileItem } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let sessionManager: MultiSessionManager;
@@ -501,6 +502,161 @@ function setupIPCHandlers() {
     }
 
     return await checkpointManager.getStatus(session.workingDirectory);
+  });
+
+  // File Operations
+  ipcMain.handle(IPC_CHANNELS.LIST_FILES, async (_, { sessionId, relativePath }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    const fullPath = relativePath
+      ? path.join(session.workingDirectory, relativePath)
+      : session.workingDirectory;
+
+    try {
+      const entries = await fs.readdir(fullPath, { withFileTypes: true });
+      const files: FileItem[] = [];
+
+      for (const entry of entries) {
+        // Skip hidden files and common ignore patterns
+        if (entry.name.startsWith('.') || entry.name === 'node_modules') {
+          continue;
+        }
+
+        const entryPath = path.join(fullPath, entry.name);
+        const stats = await fs.stat(entryPath);
+        const relPath = relativePath
+          ? path.join(relativePath, entry.name)
+          : entry.name;
+
+        files.push({
+          name: entry.name,
+          path: relPath,
+          isDirectory: entry.isDirectory(),
+          size: stats.size,
+          modifiedTime: stats.mtime.toISOString(),
+        });
+      }
+
+      // Sort: directories first, then files, alphabetically
+      files.sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      return files;
+    } catch (error) {
+      console.error('[LIST_FILES] Error:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.DELETE_FILE, async (_, { sessionId, relativePath }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    const fullPath = path.join(session.workingDirectory, relativePath);
+
+    // Safety check: ensure we're within the working directory
+    if (!fullPath.startsWith(session.workingDirectory)) {
+      throw new Error('Invalid path: must be within working directory');
+    }
+
+    try {
+      const stats = await fs.stat(fullPath);
+      if (stats.isDirectory()) {
+        await fs.rm(fullPath, { recursive: true, force: true });
+      } else {
+        await fs.unlink(fullPath);
+      }
+    } catch (error) {
+      console.error('[DELETE_FILE] Error:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.RENAME_FILE, async (_, { sessionId, oldPath, newName }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    const fullOldPath = path.join(session.workingDirectory, oldPath);
+    const directory = path.dirname(fullOldPath);
+    const fullNewPath = path.join(directory, newName);
+
+    // Safety check
+    if (!fullOldPath.startsWith(session.workingDirectory) || !fullNewPath.startsWith(session.workingDirectory)) {
+      throw new Error('Invalid path: must be within working directory');
+    }
+
+    try {
+      await fs.rename(fullOldPath, fullNewPath);
+    } catch (error) {
+      console.error('[RENAME_FILE] Error:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.COPY_FILE, async (_, { sessionId, sourcePath, destPath }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    const fullSourcePath = path.join(session.workingDirectory, sourcePath);
+    const fullDestPath = path.join(session.workingDirectory, destPath);
+
+    // Safety check
+    if (!fullSourcePath.startsWith(session.workingDirectory) || !fullDestPath.startsWith(session.workingDirectory)) {
+      throw new Error('Invalid path: must be within working directory');
+    }
+
+    try {
+      const stats = await fs.stat(fullSourcePath);
+      if (stats.isDirectory()) {
+        await fs.cp(fullSourcePath, fullDestPath, { recursive: true });
+      } else {
+        await fs.copyFile(fullSourcePath, fullDestPath);
+      }
+    } catch (error) {
+      console.error('[COPY_FILE] Error:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.CREATE_FOLDER, async (_, { sessionId, relativePath, folderName }) => {
+    const sessions = sessionManager.getAllSessions();
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    const parentPath = relativePath
+      ? path.join(session.workingDirectory, relativePath)
+      : session.workingDirectory;
+    const fullPath = path.join(parentPath, folderName);
+
+    // Safety check
+    if (!fullPath.startsWith(session.workingDirectory)) {
+      throw new Error('Invalid path: must be within working directory');
+    }
+
+    try {
+      await fs.mkdir(fullPath, { recursive: false });
+    } catch (error) {
+      console.error('[CREATE_FOLDER] Error:', error);
+      throw error;
+    }
   });
 }
 

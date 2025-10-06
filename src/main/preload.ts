@@ -36,6 +36,11 @@ const IPC_CHANNELS = {
   GET_CHECKPOINTS: 'checkpoint:get-all',
   RESTORE_CHECKPOINT: 'checkpoint:restore',
   GET_CHECKPOINT_STATUS: 'checkpoint:status',
+  LIST_FILES: 'files:list',
+  DELETE_FILE: 'files:delete',
+  RENAME_FILE: 'files:rename',
+  COPY_FILE: 'files:copy',
+  CREATE_FOLDER: 'files:create-folder',
 } as const;
 
 // Expose protected methods that allow the renderer process to use
@@ -112,4 +117,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.RESTORE_CHECKPOINT, { sessionId, checkpointHash }),
   getCheckpointStatus: (sessionId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.GET_CHECKPOINT_STATUS, sessionId),
+
+  // File Operations
+  listFiles: (sessionId: string, relativePath?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.LIST_FILES, { sessionId, relativePath }),
+  deleteFile: (sessionId: string, relativePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.DELETE_FILE, { sessionId, relativePath }),
+  renameFile: (sessionId: string, oldPath: string, newName: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.RENAME_FILE, { sessionId, oldPath, newName }),
+  copyFile: (sessionId: string, sourcePath: string, destPath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.COPY_FILE, { sessionId, sourcePath, destPath }),
+  createFolder: (sessionId: string, relativePath: string, folderName: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.CREATE_FOLDER, { sessionId, relativePath, folderName }),
 });
