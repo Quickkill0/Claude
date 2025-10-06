@@ -267,20 +267,33 @@ export class MessageRenderer {
   ): JSX.Element {
     try {
       const parsed = JSON.parse(content);
-      const { command, description } = parsed;
+      const { command, description, timeout, run_in_background } = parsed;
+
+      if (!command) {
+        return <pre className="tool-input-content">{content}</pre>;
+      }
 
       return (
         <div className="bash-tool-content">
           {description && (
-            <div className="tool-description">{description}</div>
+            <div className="bash-description">{description}</div>
           )}
-          <div className="command-block">
-            <div className="command-label">Command:</div>
-            <code className="command-text">{command}</code>
+          <div className="bash-command-block">
+            <div className="bash-command-header">
+              <span className="bash-command-label">$</span>
+              <code className="bash-command-text">{command}</code>
+            </div>
+            {(timeout || run_in_background) && (
+              <div className="bash-options">
+                {timeout && <span className="bash-option">Timeout: {timeout}ms</span>}
+                {run_in_background && <span className="bash-option">Background</span>}
+              </div>
+            )}
           </div>
         </div>
       );
     } catch (e) {
+      console.error('Failed to parse Bash tool content:', e);
       return <pre className="tool-input-content">{content}</pre>;
     }
   }
@@ -985,6 +998,18 @@ export class MessageRenderer {
 
     // Handle Bash tool results specifically
     if (toolName === 'Bash') {
+      // Check if content is empty or just whitespace
+      const trimmedContent = content.trim();
+
+      if (!trimmedContent || trimmedContent.length === 0) {
+        return (
+          <div className="bash-result-empty">
+            <span className="success-icon">✓</span>
+            <span className="success-text">Command executed successfully (no output)</span>
+          </div>
+        );
+      }
+
       // Try to detect if it's code output or plain text
       const lineNumberInfo = this.detectLineNumberedContent(content);
       if (lineNumberInfo.hasLineNumbers) {
@@ -1005,11 +1030,28 @@ export class MessageRenderer {
         );
       }
 
-      // Otherwise render as bash output
+      // Check if it's a simple success message or short output
+      const lines = content.split('\n').filter(line => line.trim());
+      if (lines.length <= 3 && content.length < 200) {
+        return (
+          <div className="bash-result-simple">
+            <span className="terminal-prompt">$</span>
+            <pre className="bash-output-text">{content}</pre>
+          </div>
+        );
+      }
+
+      // Otherwise render as bash output with scrolling
       return (
-        <pre className="bash-output">
-          <code>{content}</code>
-        </pre>
+        <div className="bash-result-block">
+          <div className="bash-result-header">
+            <span className="terminal-icon">⚡</span>
+            <span className="output-label">Output</span>
+          </div>
+          <pre className="bash-output-content">
+            <code>{content}</code>
+          </pre>
+        </div>
       );
     }
 

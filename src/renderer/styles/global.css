@@ -1275,6 +1275,109 @@ body {
   font-size: inherit;
 }
 
+/* Bash Result Display Styles */
+.bash-result-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(76, 175, 80, 0.08);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+  border-radius: 6px;
+}
+
+.bash-result-empty .success-icon {
+  font-size: 16px;
+  color: var(--accent-green);
+}
+
+.bash-result-empty .success-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.bash-result-simple {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.bash-result-simple .terminal-prompt {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-green);
+  font-family: 'Consolas', 'Monaco', monospace;
+  user-select: none;
+}
+
+.bash-result-simple .bash-output-text {
+  flex: 1;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.5;
+}
+
+.bash-result-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.bash-result-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.bash-result-header .terminal-icon {
+  font-size: 14px;
+}
+
+.bash-result-header .output-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bash-output-content {
+  margin: 0;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.5;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.bash-output-content code {
+  font-family: inherit;
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
 /* Code Blocks - Modern Enhanced Design */
 .code-block {
   background: var(--bg-tertiary);
@@ -3718,6 +3821,67 @@ body {
   gap: 10px;
 }
 
+.bash-description {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  background: rgba(0, 122, 204, 0.08);
+  border-left: 3px solid var(--accent-blue);
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.bash-command-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.bash-command-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+.bash-command-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent-green);
+  user-select: none;
+}
+
+.bash-command-text {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: none;
+  padding: 0;
+  flex: 1;
+  word-break: break-all;
+}
+
+.bash-options {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.bash-option {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: rgba(0, 122, 204, 0.1);
+  border-radius: 4px;
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+
+/* Legacy command block styles (keeping for backward compatibility) */
 .tool-description {
   font-size: 12px;
   color: var(--text-secondary);
