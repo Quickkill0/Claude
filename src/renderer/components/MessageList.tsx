@@ -12,21 +12,22 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
   const wasAtBottomRef = useRef<boolean>(true);
+  const previousMessageCountRef = useRef<number>(0);
   const [collapsedThinking, setCollapsedThinking] = useState<Set<string>>(new Set());
   const [collapsedTools, setCollapsedTools] = useState<Set<string>>(new Set());
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
   const { respondToPermission } = useSessionStore();
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   const isScrolledToBottom = () => {
     const container = messageListRef.current;
     if (!container) return true;
 
-    const threshold = 100; // pixels from bottom to still consider "at bottom"
+    const threshold = 150; // pixels from bottom to still consider "at bottom"
     const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
     return isAtBottom;
   };
@@ -44,10 +45,24 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Handle auto-scroll when messages change
   useEffect(() => {
-    // Only auto-scroll if user was at the bottom before the update
-    if (wasAtBottomRef.current) {
-      scrollToBottom();
+    const hasNewMessages = messages.length > previousMessageCountRef.current;
+    previousMessageCountRef.current = messages.length;
+
+    // Always scroll to bottom if new messages were added
+    if (hasNewMessages) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        scrollToBottom('auto');
+        // Update the ref after scrolling
+        wasAtBottomRef.current = true;
+      });
+    } else if (wasAtBottomRef.current) {
+      // For content changes (collapse/expand), only scroll if already at bottom
+      requestAnimationFrame(() => {
+        scrollToBottom('smooth');
+      });
     }
   }, [messages, collapsedThinking, collapsedTools, expandedContent]);
 
@@ -280,6 +295,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
       case 'tool-result':
         const isError = metadata?.isError || false;
         const isResultCollapsed = collapsedTools.has(message.id);
+        const resultToolName = metadata?.toolName || 'Unknown';
 
         // Format tool result content
         const { formattedContent, isJson } = MessageRenderer.formatToolResultContent(content);
@@ -316,7 +332,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
               </div>
               {!isResultCollapsed && (
                 <div className="message-content">
-                  {MessageRenderer.renderToolResult(formattedContent, isJson)}
+                  {MessageRenderer.renderToolResult(formattedContent, isJson, resultToolName, message.id, renderConfig)}
                 </div>
               )}
             </div>

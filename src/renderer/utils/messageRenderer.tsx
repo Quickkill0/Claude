@@ -750,14 +750,14 @@ export class MessageRenderer {
   }
 
   /**
-   * Detect if content looks like code output with line numbers (cat -n format)
+   * Detect if content looks like code output with line numbers (cat -n format or Read tool format)
    */
   static detectLineNumberedContent(content: string): { hasLineNumbers: boolean; language?: string } {
     const lines = content.split('\n').filter(line => line.trim());
     if (lines.length < 3) return { hasLineNumbers: false };
 
-    // Check if most lines start with line numbers (format: "   123\t")
-    const lineNumberPattern = /^\s+\d+\t/;
+    // Check if most lines start with line numbers (format: "   123\t" or "   123→")
+    const lineNumberPattern = /^\s+\d+[\t→]/;
     const linesWithNumbers = lines.filter(line => lineNumberPattern.test(line)).length;
     const ratio = linesWithNumbers / lines.length;
 
@@ -780,6 +780,8 @@ export class MessageRenderer {
         return { hasLineNumbers: true, language: 'html' };
       } else if (content.includes('{') && content.includes('}') && (firstLine.match(/^[\w-]+\s*{/) || content.includes('font-') || content.includes('color:'))) {
         return { hasLineNumbers: true, language: 'css' };
+      } else if (firstLine.match(/^(interface|type|@|ng-)/)) {
+        return { hasLineNumbers: true, language: 'typescript' };
       }
 
       return { hasLineNumbers: true };
@@ -806,7 +808,13 @@ export class MessageRenderer {
   /**
    * Render tool result content with improved parsing
    */
-  static renderToolResult(content: string, isJson: boolean): JSX.Element {
+  static renderToolResult(
+    content: string,
+    isJson: boolean,
+    toolName?: string,
+    messageId?: string,
+    config?: RenderConfig
+  ): JSX.Element {
     if (isJson) {
       return (
         <SyntaxHighlighter
@@ -821,12 +829,91 @@ export class MessageRenderer {
       );
     }
 
+    // Handle Read tool results specifically
+    if (toolName === 'Read') {
+      const lineNumberInfo = this.detectLineNumberedContent(content);
+      if (lineNumberInfo.hasLineNumbers) {
+        // Remove line numbers for syntax highlighting
+        const cleanContent = content.split('\n')
+          .map(line => line.replace(/^\s+\d+→/, '').replace(/^\s+\d+\t/, ''))
+          .join('\n');
+
+        return (
+          <SyntaxHighlighter
+            style={getSyntaxTheme()}
+            language={lineNumberInfo.language || 'text'}
+            PreTag="div"
+            customStyle={{ margin: 0, borderRadius: '4px', fontSize: '12px' }}
+            showLineNumbers
+          >
+            {cleanContent}
+          </SyntaxHighlighter>
+        );
+      }
+    }
+
+    // Handle Glob tool results specifically
+    if (toolName === 'Glob') {
+      if (this.detectFileListing(content)) {
+        const files = content.split('\n').filter(line => line.trim());
+        return (
+          <div className="file-listing-result">
+            <div className="file-listing-header">
+              <span className="file-icon">📁</span>
+              <span className="file-count">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="file-listing-content">
+              {files.map((file, idx) => {
+                const fileName = file.trim();
+                return (
+                  <div key={idx} className="file-listing-item">
+                    <span className="file-icon">{getFileIcon(fileName)}</span>
+                    <span className="file-name">{fileName}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+    }
+
+    // Handle Bash tool results specifically
+    if (toolName === 'Bash') {
+      // Try to detect if it's code output or plain text
+      const lineNumberInfo = this.detectLineNumberedContent(content);
+      if (lineNumberInfo.hasLineNumbers) {
+        const cleanContent = content.split('\n')
+          .map(line => line.replace(/^\s+\d+→/, '').replace(/^\s+\d+\t/, ''))
+          .join('\n');
+
+        return (
+          <SyntaxHighlighter
+            style={getSyntaxTheme()}
+            language={lineNumberInfo.language || 'bash'}
+            PreTag="div"
+            customStyle={{ margin: 0, borderRadius: '4px', fontSize: '12px' }}
+            showLineNumbers
+          >
+            {cleanContent}
+          </SyntaxHighlighter>
+        );
+      }
+
+      // Otherwise render as bash output
+      return (
+        <pre className="bash-output">
+          <code>{content}</code>
+        </pre>
+      );
+    }
+
     // Check if content has line numbers (like cat -n output)
     const lineNumberInfo = this.detectLineNumberedContent(content);
     if (lineNumberInfo.hasLineNumbers) {
       // Remove line numbers for syntax highlighting
       const cleanContent = content.split('\n')
-        .map(line => line.replace(/^\s+\d+\t/, ''))
+        .map(line => line.replace(/^\s+\d+→/, '').replace(/^\s+\d+\t/, ''))
         .join('\n');
 
       return (

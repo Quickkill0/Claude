@@ -1251,6 +1251,28 @@ body {
   overflow-x: auto;
 }
 
+/* Bash Output Content */
+.bash-output {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 0;
+  overflow-x: auto;
+}
+
+.bash-output code {
+  font-family: inherit;
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
 /* Code Blocks - Modern Enhanced Design */
 .code-block {
   background: var(--bg-tertiary);
