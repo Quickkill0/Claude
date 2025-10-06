@@ -56,9 +56,11 @@
     ],
     "win": {
       "target": [
-        "nsis"
+        "dir"
       ],
-      "icon": "assets/icon.png"
+      "icon": "assets/icon.png",
+      "sign": null,
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
