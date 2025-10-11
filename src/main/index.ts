@@ -681,6 +681,17 @@ function setupIPCHandlers() {
       throw error;
     }
   });
+
+  ipcMain.handle(IPC_CHANNELS.READ_FILE, async (_, filePath: string) => {
+    try {
+      // Read file content as UTF-8 string
+      const content = await fs.readFile(filePath, 'utf-8');
+      return content;
+    } catch (error) {
+      console.error('[READ_FILE] Error:', error);
+      throw new Error(`Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  });
 }
 
 // Map Claude session ID to our Electron session ID

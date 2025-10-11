@@ -41,6 +41,7 @@ const IPC_CHANNELS = {
   RENAME_FILE: 'files:rename',
   COPY_FILE: 'files:copy',
   CREATE_FOLDER: 'files:create-folder',
+  READ_FILE: 'files:read',
 } as const;
 
 // Expose protected methods that allow the renderer process to use
@@ -129,4 +130,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.COPY_FILE, { sessionId, sourcePath, destPath }),
   createFolder: (sessionId: string, relativePath: string, folderName: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.CREATE_FOLDER, { sessionId, relativePath, folderName }),
+  readFile: (filePath: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.READ_FILE, filePath),
 });

@@ -195,6 +195,34 @@ export interface Reference {
   description?: string;
 }
 
+// Artifact system types
+export type ArtifactType = 'code' | 'document' | 'html' | 'svg' | 'mermaid' | 'react';
+
+export interface ArtifactVersion {
+  id: string;
+  content: string;
+  timestamp: string;
+  title?: string;
+}
+
+export interface Artifact {
+  id: string;
+  sessionId: string;
+  conversationId?: string;
+  title: string;
+  type: ArtifactType;
+  language: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  versions: ArtifactVersion[];
+  metadata?: {
+    description?: string;
+    author?: string;
+    tags?: string[];
+  };
+}
+
 // IPC Channel names
 export const IPC_CHANNELS = {
   // Session management
@@ -261,6 +289,7 @@ export const IPC_CHANNELS = {
   RENAME_FILE: 'files:rename',
   COPY_FILE: 'files:copy',
   CREATE_FOLDER: 'files:create-folder',
+  READ_FILE: 'files:read',
 } as const;
 
 // Window API type for TypeScript
@@ -306,6 +335,7 @@ declare global {
       renameFile: (sessionId: string, oldPath: string, newName: string) => Promise<void>;
       copyFile: (sessionId: string, sourcePath: string, destPath: string) => Promise<void>;
       createFolder: (sessionId: string, relativePath: string, folderName: string) => Promise<void>;
+      readFile: (filePath: string) => Promise<string>;
     };
   }
 }

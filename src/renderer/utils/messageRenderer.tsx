@@ -8,6 +8,15 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { Message } from '../../shared/types';
+import DiffViewer from '../components/DiffViewer';
+import {
+  renderInteractiveBashOutput,
+  renderGrepResults,
+  renderGlobResultsAsTree,
+  detectFilePaths,
+  detectErrorTraces,
+  parseGrepResults,
+} from './interactiveContent';
 
 // Get the current syntax highlighting theme based on the app theme
 const getSyntaxTheme = () => {
@@ -111,57 +120,62 @@ export class MessageRenderer {
     }
 
     const { file_path, old_string, new_string, replace_all } = editData;
-    const { oldLines, newLines } = formatDiffLines(old_string, new_string);
 
-    // Check if content should be truncated
-    const maxLines = 5;
-    const shouldTruncate = oldLines.length > maxLines || newLines.length > maxLines;
-    const isExpanded = config.expandedContent?.has(`edit-${messageId}`) ?? false;
+    // Detect language from file extension
+    const fileName = file_path.split(/[/\\]/).pop() || file_path;
+    const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'text';
 
-    const displayOldLines = shouldTruncate && !isExpanded ? oldLines.slice(0, maxLines) : oldLines;
-    const displayNewLines = shouldTruncate && !isExpanded ? newLines.slice(0, maxLines) : newLines;
+    // Map common extensions to Monaco languages
+    const languageMap: Record<string, string> = {
+      'ts': 'typescript',
+      'tsx': 'typescript',
+      'js': 'javascript',
+      'jsx': 'javascript',
+      'py': 'python',
+      'rs': 'rust',
+      'go': 'go',
+      'java': 'java',
+      'c': 'c',
+      'cpp': 'cpp',
+      'h': 'c',
+      'hpp': 'cpp',
+      'cs': 'csharp',
+      'php': 'php',
+      'rb': 'ruby',
+      'swift': 'swift',
+      'kt': 'kotlin',
+      'json': 'json',
+      'xml': 'xml',
+      'html': 'html',
+      'css': 'css',
+      'scss': 'scss',
+      'md': 'markdown',
+      'sql': 'sql',
+      'sh': 'shell',
+      'bash': 'shell',
+      'yaml': 'yaml',
+      'yml': 'yaml',
+    };
+
+    const language = languageMap[fileExtension] || 'plaintext';
+    const theme = document.body.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
 
     return (
       <div className="edit-tool-content">
-        <div className="edit-file-path">
-          {this.renderFilePathButton(file_path, undefined, 'medium', config.onOpenFile)}
-          {replace_all && <span className="edit-badge">Replace All</span>}
-        </div>
-        <div className="diff-view">
-          <div className="diff-section removed">
-            <div className="diff-header">
-              <span>Removed</span>
-              <button
-                className="copy-code-button"
-                onClick={() => config.onCopyCode?.(old_string, `edit-old-${messageId}`)}
-                title="Copy removed code"
-              >
-                {config.copiedCode === `edit-old-${messageId}` ? '✓' : '📋'}
-              </button>
-            </div>
-            <pre className="diff-content">{displayOldLines.join('\n')}</pre>
+        <DiffViewer
+          original={old_string}
+          modified={new_string}
+          language={language}
+          fileName={file_path}
+          theme={theme}
+          showActions={false}
+          defaultViewMode="split"
+          height="400px"
+        />
+        {replace_all && (
+          <div className="edit-badge-container">
+            <span className="edit-badge">Replace All</span>
           </div>
-          <div className="diff-section added">
-            <div className="diff-header">
-              <span>Added</span>
-              <button
-                className="copy-code-button"
-                onClick={() => config.onCopyCode?.(new_string, `edit-new-${messageId}`)}
-                title="Copy added code"
-              >
-                {config.copiedCode === `edit-new-${messageId}` ? '✓' : '📋'}
-              </button>
-            </div>
-            <pre className="diff-content">{displayNewLines.join('\n')}</pre>
-          </div>
-        </div>
-        {shouldTruncate && (
-          <button
-            className="expand-message-btn"
-            onClick={() => config.onToggleExpanded?.(`edit-${messageId}`)}
-          >
-            {isExpanded ? '▲ Show Less' : '▼ Show More'}
-          </button>
         )}
       </div>
     );
@@ -970,28 +984,23 @@ export class MessageRenderer {
       }
     }
 
-    // Handle Glob tool results specifically
+    // Handle Glob tool results specifically (show as file tree)
     if (toolName === 'Glob') {
       if (this.detectFileListing(content)) {
-        const files = content.split('\n').filter(line => line.trim());
-        return (
-          <div className="file-listing-result">
-            <div className="file-listing-header">
-              <span className="file-icon">📁</span>
-              <span className="file-count">{files.length} file{files.length !== 1 ? 's' : ''}</span>
-            </div>
-            <div className="file-listing-content">
-              {files.map((file, idx) => {
-                const fileName = file.trim();
-                return (
-                  <div key={idx} className="file-listing-item">
-                    <span className="file-icon">{getFileIcon(fileName)}</span>
-                    <span className="file-name">{fileName}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+        return renderGlobResultsAsTree(
+          content,
+          config?.onOpenFile || (() => {})
+        );
+      }
+    }
+
+    // Handle Grep tool results specifically (show as interactive list)
+    if (toolName === 'Grep') {
+      const grepMatches = parseGrepResults(content);
+      if (grepMatches.length > 0) {
+        return renderGrepResults(
+          content,
+          config?.onOpenFile || (() => {})
         );
       }
     }
@@ -1041,7 +1050,31 @@ export class MessageRenderer {
         );
       }
 
-      // Otherwise render as bash output with scrolling
+      // Otherwise render as interactive bash output with clickable file paths
+      const hasFilePaths = detectFilePaths(content).length > 0;
+      const hasErrorTraces = detectErrorTraces(content).length > 0;
+
+      if (hasFilePaths || hasErrorTraces) {
+        return (
+          <div className="bash-result-block">
+            <div className="bash-result-header">
+              <span className="terminal-icon">⚡</span>
+              <span className="output-label">Output</span>
+              {(hasFilePaths || hasErrorTraces) && (
+                <span className="interactive-badge" title="Contains clickable file paths">
+                  🔗 Interactive
+                </span>
+              )}
+            </div>
+            {renderInteractiveBashOutput(
+              content,
+              config?.onOpenFile || (() => {})
+            )}
+          </div>
+        );
+      }
+
+      // Default bash output (no interactive elements)
       return (
         <div className="bash-result-block">
           <div className="bash-result-header">

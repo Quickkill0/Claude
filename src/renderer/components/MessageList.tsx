@@ -9,9 +9,10 @@ import { groupToolMessages, type ToolGroup } from '../utils/toolGrouping';
 interface MessageListProps {
   messages: Message[];
   onToolSummaryClick?: (messageId: string) => void;
+  onOpenFile?: (filePath: string, lineNumber?: number) => void;
 }
 
-const MessageList: React.FC<MessageListProps> = ({ messages, onToolSummaryClick }) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, onToolSummaryClick, onOpenFile }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
   const wasAtBottomRef = useRef<boolean>(true);
@@ -161,21 +162,10 @@ const MessageList: React.FC<MessageListProps> = ({ messages, onToolSummaryClick 
     return lines.slice(0, maxLines).join('\n');
   };
 
-  const openFile = async (path: string, lineNumber?: number) => {
-    // For now, just copy the file path to clipboard
-    // In a real implementation, this would use window.electronAPI.openFile
-    try {
-      await navigator.clipboard.writeText(lineNumber ? `${path}:${lineNumber}` : path);
-      console.log(`File path copied: ${path}${lineNumber ? `:${lineNumber}` : ''}`);
-    } catch (err) {
-      console.error('Failed to copy file path:', err);
-    }
-  };
-
   // Create render config for MessageRenderer
   const renderConfig = {
     onCopyCode: copyToClipboard,
-    onOpenFile: openFile,
+    onOpenFile: onOpenFile || (() => {}), // Use the callback from props, or no-op if not provided
     onToggleExpanded: toggleExpanded,
     copiedCode,
     expandedContent,

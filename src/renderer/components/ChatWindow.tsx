@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { Session, SlashCommand, Reference, Agent, FileItem, AppSettings } from '../../shared/types';
+import type { Session, SlashCommand, Reference, Agent, FileItem, AppSettings, Artifact } from '../../shared/types';
 import { useSessionStore } from '../store/sessionStore';
 import MessageList from './MessageList';
 import HistoryModal from './HistoryModal';
@@ -10,7 +10,10 @@ import ReferenceChip from './ReferenceChip';
 import AgentManagementModal from './AgentManagementModal';
 import MCPManagementModal from './MCPManagementModal';
 import ActivityPanel from './ActivityPanel';
+import FileViewerModal from './FileViewerModal';
+import ArtifactPanel from './ArtifactPanel';
 import { CommandHandler } from '../utils/commandHandler';
+import { detectArtifacts, createArtifact, updateArtifact } from '../utils/artifactDetection';
 
 // Crypto for generating UUIDs
 const crypto = window.crypto;
@@ -37,6 +40,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
   const [isActivityPanelCollapsed, setIsActivityPanelCollapsed] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [fileViewerState, setFileViewerState] = useState<{ isOpen: boolean; filePath: string; lineNumber?: number }>({
+    isOpen: false,
+    filePath: '',
+  });
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [showArtifacts, setShowArtifacts] = useState(false);
 
   // Reference state
   const [references, setReferences] = useState<Reference[]>([]);
@@ -402,6 +411,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
     setShowReferenceAutocomplete(false);
   };
 
+  const handleOpenFile = (filePath: string, lineNumber?: number) => {
+    setFileViewerState({
+      isOpen: true,
+      filePath,
+      lineNumber,
+    });
+  };
+
+  const handleCloseFileViewer = () => {
+    setFileViewerState({
+      isOpen: false,
+      filePath: '',
+      lineNumber: undefined,
+    });
+  };
+
   // Load settings on mount and when session changes
   useEffect(() => {
     const loadSettings = async () => {
@@ -498,6 +523,52 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
     }
   }, [inputText]);
 
+  // Detect and extract artifacts from messages
+  useEffect(() => {
+    const detectedArtifacts: Artifact[] = [];
+
+    // Process all assistant messages for artifacts
+    sessionMessages.forEach((message) => {
+      if (message.type === 'assistant' && message.content) {
+        const matches = detectArtifacts(message.content);
+
+        matches.forEach((match) => {
+          // Check if artifact already exists
+          const existingArtifactIndex = detectedArtifacts.findIndex(
+            (a) => a.id === match.identifier
+          );
+
+          if (existingArtifactIndex >= 0) {
+            // Update existing artifact with new content (new version)
+            const existing = detectedArtifacts[existingArtifactIndex];
+            if (existing.content !== match.content) {
+              detectedArtifacts[existingArtifactIndex] = updateArtifact(
+                existing,
+                match.content,
+                match.title
+              );
+            }
+          } else {
+            // Create new artifact
+            const newArtifact = createArtifact(
+              match,
+              session.id,
+              session.activeConversationId
+            );
+            detectedArtifacts.push(newArtifact);
+          }
+        });
+      }
+    });
+
+    setArtifacts(detectedArtifacts);
+
+    // Auto-show artifacts panel if artifacts are detected
+    if (detectedArtifacts.length > 0 && !showArtifacts) {
+      setShowArtifacts(true);
+    }
+  }, [sessionMessages, session.id, session.activeConversationId]);
+
   // Handle slash command selection
   const handleCommandSelect = (command: SlashCommand) => {
     const cursorPosition = inputRef.current?.selectionStart || 0;
@@ -549,7 +620,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
       </div>
 
       <div className="chat-content">
-        <div className={`chat-main-panel ${settings?.showActivityPanel !== false && !isActivityPanelCollapsed ? 'with-activity-panel' : ''}`}>
+        <div className={`chat-main-panel ${settings?.showActivityPanel !== false && !isActivityPanelCollapsed ? 'with-activity-panel' : ''} ${showArtifacts && artifacts.length > 0 ? 'with-artifact-panel' : ''}`}>
           <MessageList
             messages={sessionMessages}
             onToolSummaryClick={(messageId) => {
@@ -558,8 +629,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
                 setIsActivityPanelCollapsed(false);
               }
             }}
+            onOpenFile={handleOpenFile}
           />
         </div>
+        {showArtifacts && artifacts.length > 0 && (
+          <div className="artifact-panel-container">
+            <ArtifactPanel
+              artifacts={artifacts}
+              onClose={() => setShowArtifacts(false)}
+              theme={settings?.theme === 'light' ? 'light' : 'dark'}
+            />
+          </div>
+        )}
         {settings?.showActivityPanel !== false && (
           <ActivityPanel
             messages={sessionMessages}
@@ -735,6 +816,13 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           onClose={() => setShowMCPModal(false)}
         />
       )}
+
+      <FileViewerModal
+        isOpen={fileViewerState.isOpen}
+        filePath={fileViewerState.filePath}
+        lineNumber={fileViewerState.lineNumber}
+        onClose={handleCloseFileViewer}
+      />
     </div>
   );
 };
