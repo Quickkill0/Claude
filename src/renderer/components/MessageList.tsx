@@ -1,14 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { Message } from '../../shared/types';
+import type { Message, AppSettings } from '../../shared/types';
 import { useSessionStore } from '../store/sessionStore';
 import { MessageRenderer } from '../utils/messageRenderer';
 import { formatToolName } from '../utils/messageFormatting';
+import ToolSummaryCard from './ToolSummaryCard';
+import { groupToolMessages, type ToolGroup } from '../utils/toolGrouping';
 
 interface MessageListProps {
   messages: Message[];
+  onToolSummaryClick?: (messageId: string) => void;
 }
 
-const MessageList: React.FC<MessageListProps> = ({ messages }) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, onToolSummaryClick }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
   const wasAtBottomRef = useRef<boolean>(true);
@@ -18,7 +21,22 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [expandedContent, setExpandedContent] = useState<Set<string>>(new Set());
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [activityPanelMessageId, setActivityPanelMessageId] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const { respondToPermission } = useSessionStore();
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      const appSettings = await window.electronAPI.getSettings();
+      setSettings(appSettings);
+    };
+    loadSettings();
+
+    // Add interval to check for settings changes every 500ms
+    const settingsInterval = setInterval(loadSettings, 500);
+    return () => clearInterval(settingsInterval);
+  }, []);
 
   const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -179,8 +197,53 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const renderMessage = (message: Message) => {
+  const toggleGroup = (groupId: string) => {
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(groupId)) {
+      newExpanded.delete(groupId);
+    } else {
+      newExpanded.add(groupId);
+    }
+    setExpandedGroups(newExpanded);
+  };
+
+  const renderToolGroup = (group: ToolGroup) => {
+    const isExpanded = expandedGroups.has(group.id);
+    const messageDensity = settings?.messageDensity || 'balanced';
+
+    // In minimal mode, don't show tool groups
+    if (messageDensity === 'minimal') {
+      return null;
+    }
+
+    // In balanced mode, show compact group summary
+    if (messageDensity === 'balanced' && group.type === 'operation') {
+      return (
+        <div key={group.id} className="message message-tool-group">
+          <div className="tool-group-summary" onClick={() => toggleGroup(group.id)}>
+            <span className="tool-group-icon">{group.icon}</span>
+            <span className="tool-group-text">{group.summary}</span>
+            <span className="tool-group-count">{group.messages.length} steps</span>
+            <span className="tool-group-expand">{isExpanded ? '▼' : '▶'}</span>
+          </div>
+          {isExpanded && (
+            <div className="tool-group-details">
+              {group.messages.map((msg) => renderMessage(msg, true))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // For single tools or detailed mode, render individual messages
+    return group.messages.map((msg) => renderMessage(msg));
+  };
+
+  const renderMessage = (message: Message, forceDetailed: boolean = false) => {
     const { type, content, metadata } = message;
+
+    // Override density if rendering inside a group
+    const effectiveDensity = forceDetailed ? 'detailed' : (settings?.messageDensity || 'balanced');
 
     switch (type) {
       case 'user':
@@ -282,7 +345,25 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
           </div>
         );
 
-      case 'tool':
+      case 'tool': {
+        // In minimal mode, don't show tools in main chat
+        if (effectiveDensity === 'minimal') {
+          return null;
+        }
+
+        // In balanced mode, show compact summary card
+        if (effectiveDensity === 'balanced') {
+          return (
+            <div key={message.id} className="message message-tool-summary">
+              <ToolSummaryCard
+                message={message}
+                onClick={() => setActivityPanelMessageId(message.id)}
+              />
+            </div>
+          );
+        }
+
+        // In detailed mode, show full tool message (existing code)
         const toolName = metadata?.toolName || 'Tool';
         const displayName = formatToolName(toolName);
         const isToolCollapsed = collapsedTools.has(message.id);
@@ -325,8 +406,30 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
             </div>
           </div>
         );
+      }
 
-      case 'tool-result':
+      case 'tool-result': {
+        // In minimal mode, don't show results in main chat
+        if (effectiveDensity === 'minimal') {
+          return null;
+        }
+
+        // In balanced mode, show compact summary card
+        if (effectiveDensity === 'balanced') {
+          return (
+            <div key={message.id} className="message message-tool-summary">
+              <ToolSummaryCard
+                message={message}
+                onClick={() => {
+                  setActivityPanelMessageId(message.id);
+                  onToolSummaryClick?.(message.id);
+                }}
+              />
+            </div>
+          );
+        }
+
+        // In detailed mode, show full result (existing code)
         const isError = metadata?.isError || false;
         const isResultCollapsed = collapsedTools.has(message.id);
         const resultToolName = metadata?.toolName || 'Unknown';
@@ -385,6 +488,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
             </div>
           </div>
         );
+      }
 
       case 'system':
         const isSystemTruncatable = shouldTruncateContent(content);
@@ -537,6 +641,23 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     }
   };
 
+  // Group tool messages if enabled (balanced mode with operations)
+  const shouldGroupTools = settings?.messageDensity === 'balanced';
+  const toolGroups = shouldGroupTools ? groupToolMessages(messages) : [];
+  const groupedMessageIds = new Set(toolGroups.flatMap(g => g.messages.map(m => m.id)));
+
+  // Debug logging
+  if (shouldGroupTools && toolGroups.length > 0) {
+    console.log('[MessageList] Tool groups:', toolGroups.map(g => ({
+      id: g.id,
+      type: g.type,
+      summary: g.summary,
+      messageCount: g.messages.length,
+      messageIds: g.messages.map(m => m.id)
+    })));
+    console.log('[MessageList] Grouped message IDs:', Array.from(groupedMessageIds));
+  }
+
   return (
     <div className="message-list" ref={messageListRef}>
       {messages.length === 0 ? (
@@ -544,7 +665,27 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
           <h2>Start a conversation with Claude</h2>
           <p>Type your message below to get started</p>
         </div>
+      ) : shouldGroupTools ? (
+        // Render with grouping logic
+        messages.map((message) => {
+          // Find if this message is part of a group
+          const group = toolGroups.find(g => g.messages[0].id === message.id);
+
+          // If this is the first message of a group, render the whole group
+          if (group && group.messages[0].id === message.id) {
+            return renderToolGroup(group);
+          }
+
+          // If this message is in a group but not the first, skip (already rendered)
+          if (groupedMessageIds.has(message.id)) {
+            return null;
+          }
+
+          // Otherwise render individual message
+          return renderMessage(message);
+        })
       ) : (
+        // Render without grouping
         messages.map((message) => renderMessage(message))
       )}
       <div ref={messagesEndRef} />

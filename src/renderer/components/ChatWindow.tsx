@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { Session, SlashCommand, Reference, Agent, FileItem } from '../../shared/types';
+import type { Session, SlashCommand, Reference, Agent, FileItem, AppSettings } from '../../shared/types';
 import { useSessionStore } from '../store/sessionStore';
 import MessageList from './MessageList';
 import HistoryModal from './HistoryModal';
@@ -9,6 +9,7 @@ import ReferenceAutocomplete from './ReferenceAutocomplete';
 import ReferenceChip from './ReferenceChip';
 import AgentManagementModal from './AgentManagementModal';
 import MCPManagementModal from './MCPManagementModal';
+import ActivityPanel from './ActivityPanel';
 import { CommandHandler } from '../utils/commandHandler';
 
 // Crypto for generating UUIDs
@@ -33,6 +34,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
   const [autocompletePosition, setAutocompletePosition] = useState({ top: 0, left: 0 });
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showMCPModal, setShowMCPModal] = useState(false);
+  const [isActivityPanelCollapsed, setIsActivityPanelCollapsed] = useState(false);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
 
   // Reference state
   const [references, setReferences] = useState<Reference[]>([]);
@@ -398,6 +402,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
     setShowReferenceAutocomplete(false);
   };
 
+  // Load settings on mount and when session changes
+  useEffect(() => {
+    const loadSettings = async () => {
+      const appSettings = await window.electronAPI.getSettings();
+      setSettings(appSettings);
+    };
+    loadSettings();
+
+    // Add interval to check for settings changes every 500ms
+    const settingsInterval = setInterval(loadSettings, 500);
+    return () => clearInterval(settingsInterval);
+  }, [session.id]);
+
   // Load slash commands when session changes
   useEffect(() => {
     const loadCommands = async () => {
@@ -531,7 +548,27 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
         </div>
       </div>
 
-      <MessageList messages={sessionMessages} />
+      <div className="chat-content">
+        <div className={`chat-main-panel ${settings?.showActivityPanel !== false && !isActivityPanelCollapsed ? 'with-activity-panel' : ''}`}>
+          <MessageList
+            messages={sessionMessages}
+            onToolSummaryClick={(messageId) => {
+              setHighlightedMessageId(messageId);
+              if (isActivityPanelCollapsed) {
+                setIsActivityPanelCollapsed(false);
+              }
+            }}
+          />
+        </div>
+        {settings?.showActivityPanel !== false && (
+          <ActivityPanel
+            messages={sessionMessages}
+            isCollapsed={isActivityPanelCollapsed}
+            onToggle={() => setIsActivityPanelCollapsed(!isActivityPanelCollapsed)}
+            highlightMessageId={highlightedMessageId}
+          />
+        )}
+      </div>
 
       <div className="chat-input">
         <div className="status-bar-top">

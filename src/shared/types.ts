@@ -116,6 +116,8 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'auto';
   defaultModel: 'opus' | 'sonnet' | 'sonnet1m' | 'default';
   defaultWorkingDir?: string;
+  messageDensity?: 'minimal' | 'balanced' | 'detailed';
+  showActivityPanel?: boolean;
   alwaysAllowPermissions: PermissionRule[];
   wsl?: {
     enabled: boolean;

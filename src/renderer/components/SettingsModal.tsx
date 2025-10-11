@@ -131,6 +131,39 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
             </select>
           </section>
 
+          {/* Message Density Setting */}
+          <section className="settings-section">
+            <h3>Message Density</h3>
+            <p className="settings-description">
+              Control how much detail to show in the chat view.
+            </p>
+            <select
+              className="model-select"
+              value={settings.messageDensity || 'balanced'}
+              onChange={(e) => updateSetting('messageDensity', e.target.value as 'minimal' | 'balanced' | 'detailed')}
+            >
+              <option value="minimal">Minimal - Only conversation (tools in Activity Panel)</option>
+              <option value="balanced">Balanced - Conversation + tool summaries (Recommended)</option>
+              <option value="detailed">Detailed - Show everything inline</option>
+            </select>
+          </section>
+
+          {/* Activity Panel Setting */}
+          <section className="settings-section">
+            <h3>Activity Panel</h3>
+            <p className="settings-description">
+              Show a side panel with detailed tool execution timeline.
+            </p>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={settings.showActivityPanel ?? true}
+                onChange={(e) => updateSetting('showActivityPanel', e.target.checked)}
+              />
+              <span>Show Activity Panel</span>
+            </label>
+          </section>
+
           {/* WSL Configuration */}
           <section className="settings-section">
             <h3>WSL Configuration</h3>
