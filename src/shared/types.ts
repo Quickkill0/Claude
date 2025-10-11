@@ -24,6 +24,7 @@ export interface Session {
     cacheCreationTokens: number;
     cacheReadTokens: number;
   };
+  pinnedMessageIds?: string[];
 }
 
 export interface Conversation {

@@ -13,8 +13,13 @@ interface ActivityPanelProps {
 const ActivityPanel: React.FC<ActivityPanelProps> = ({ messages, isCollapsed, onToggle, highlightMessageId }) => {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [filterType, setFilterType] = useState<'all' | 'tool' | 'tool-result' | 'error'>('all');
+  const [panelWidth, setPanelWidth] = useState<number>(400);
+  const [isResizing, setIsResizing] = useState(false);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const timelineRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const startXRef = useRef<number>(0);
+  const hasMovedRef = useRef<boolean>(false);
 
   // Auto-expand and scroll to highlighted message
   useEffect(() => {
@@ -90,6 +95,46 @@ const ActivityPanel: React.FC<ActivityPanelProps> = ({ messages, isCollapsed, on
     });
   };
 
+  // Handle mouse down on handle (could be click or drag)
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    startXRef.current = e.clientX;
+    hasMovedRef.current = false;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = Math.abs(moveEvent.clientX - startXRef.current);
+      if (deltaX > 5 && !hasMovedRef.current) {
+        hasMovedRef.current = true;
+        setIsResizing(true);
+      }
+
+      if (hasMovedRef.current) {
+        const newWidth = window.innerWidth - moveEvent.clientX;
+        const constrainedWidth = Math.min(Math.max(newWidth, 280), 800);
+        setPanelWidth(constrainedWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+
+      if (isResizing) {
+        setIsResizing(false);
+      }
+
+      // If no significant movement, treat as click to collapse
+      if (!hasMovedRef.current) {
+        onToggle();
+      }
+
+      hasMovedRef.current = false;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
   if (isCollapsed) {
     return (
       <div className="activity-panel-collapsed">
@@ -107,7 +152,7 @@ const ActivityPanel: React.FC<ActivityPanelProps> = ({ messages, isCollapsed, on
   }
 
   return (
-    <div className="activity-panel">
+    <div className={`activity-panel ${isResizing ? 'resizing' : ''}`} ref={panelRef} style={{ width: `${panelWidth}px` }}>
       <div className="activity-panel-header">
         <div className="activity-panel-title">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -121,7 +166,7 @@ const ActivityPanel: React.FC<ActivityPanelProps> = ({ messages, isCollapsed, on
         </div>
       </div>
 
-      <div className="activity-panel-handle" onClick={onToggle} title="Collapse Activity Panel">
+      <div className="activity-panel-handle" onMouseDown={handleMouseDown} title="Click to collapse, drag to resize">
         <div className="activity-panel-handle-bar"></div>
       </div>
 

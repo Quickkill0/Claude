@@ -265,10 +265,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, onToolSummaryClick,
         );
 
       case 'assistant':
-        const isTruncatable = shouldTruncateContent(content);
-        const isMessageExpanded = expandedMessages.has(message.id);
-        const displayContent = isTruncatable && !isMessageExpanded ? truncateContent(content) : content;
-
+        // Claude messages are always fully expanded by default
         return (
           <div key={message.id} className="message message-claude">
             <div className="message-avatar">
@@ -293,15 +290,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, onToolSummaryClick,
                 </button>
               </div>
               <div className="message-content">
-                {MessageRenderer.renderEnhancedMarkdown(displayContent, message.id, renderConfig)}
-                {isTruncatable && (
-                  <button
-                    className="expand-message-btn"
-                    onClick={() => toggleMessageExpanded(message.id)}
-                  >
-                    {isMessageExpanded ? '▲ Show Less' : '▼ Show More'}
-                  </button>
-                )}
+                {MessageRenderer.renderEnhancedMarkdown(content, message.id, renderConfig)}
               </div>
             </div>
           </div>

@@ -30,6 +30,8 @@ interface SessionStore {
   addPermissionRequest: (request: import('../../shared/types').PermissionRequest) => void;
   respondToPermission: (requestId: string, allowed: boolean, alwaysAllow: boolean, alwaysDeny?: boolean) => Promise<void>;
   removeSessionPermission: (sessionId: string, index: number) => Promise<void>;
+  pinMessage: (sessionId: string, messageId: string) => Promise<void>;
+  unpinMessage: (sessionId: string, messageId: string) => Promise<void>;
 }
 
 // Track if stream listener is already registered
@@ -643,6 +645,44 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       set({ sessions: updatedSessions });
     } catch (error) {
       console.error('Failed to remove session permission:', error);
+    }
+  },
+
+  pinMessage: async (sessionId: string, messageId: string) => {
+    const session = get().sessions.find(s => s.id === sessionId);
+    const pinnedIds = session?.pinnedMessageIds || [];
+
+    // Add message ID if not already pinned
+    if (!pinnedIds.includes(messageId)) {
+      const newPinnedIds = [...pinnedIds, messageId];
+
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === sessionId ? { ...s, pinnedMessageIds: newPinnedIds } : s
+        ),
+      }));
+
+      // Save updated session metadata to backend
+      await window.electronAPI.updateSession(sessionId, { pinnedMessageIds: newPinnedIds });
+    }
+  },
+
+  unpinMessage: async (sessionId: string, messageId: string) => {
+    const session = get().sessions.find(s => s.id === sessionId);
+    const pinnedIds = session?.pinnedMessageIds || [];
+
+    // Remove message ID if pinned
+    if (pinnedIds.includes(messageId)) {
+      const newPinnedIds = pinnedIds.filter(id => id !== messageId);
+
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === sessionId ? { ...s, pinnedMessageIds: newPinnedIds } : s
+        ),
+      }));
+
+      // Save updated session metadata to backend
+      await window.electronAPI.updateSession(sessionId, { pinnedMessageIds: newPinnedIds });
     }
   },
 }));

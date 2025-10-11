@@ -12,6 +12,8 @@ import MCPManagementModal from './MCPManagementModal';
 import ActivityPanel from './ActivityPanel';
 import FileViewerModal from './FileViewerModal';
 import ArtifactPanel from './ArtifactPanel';
+import ContextIndicator from './ContextIndicator';
+import ExportModal from './ExportModal';
 import { CommandHandler } from '../utils/commandHandler';
 import { detectArtifacts, createArtifact, updateArtifact } from '../utils/artifactDetection';
 
@@ -23,7 +25,7 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
-  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadConversation, toggleThinkingMode, togglePlanMode, toggleChatMode } = useSessionStore();
+  const { sendMessage, stopProcess, messages, getInputText, setInputText: setStoreInputText, startNewChat, updateSessionModel, loadConversation, toggleThinkingMode, togglePlanMode, toggleChatMode, pinMessage, unpinMessage } = useSessionStore();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -46,6 +48,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
   });
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [showArtifacts, setShowArtifacts] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
   // Reference state
   const [references, setReferences] = useState<Reference[]>([]);
@@ -607,6 +610,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
           <h3>{session.name}</h3>
         </div>
         <div className="session-actions">
+          <button className="btn outlined small" onClick={() => setShowExport(true)} title="Export conversation">
+            💾 Export
+          </button>
           <button className="btn outlined small" onClick={handleShowRestore} title="Restore from checkpoint">
             🔖 Restore
           </button>
@@ -658,13 +664,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
             <span className="status-text">{session.isProcessing ? 'Processing' : 'Ready'}</span>
             <span className="status-separator">•</span>
             <span className="status-cost">
-              ${(session.totalCost || 0).toFixed(4)} • {((session.tokenUsage?.inputTokens || 0) + (session.tokenUsage?.outputTokens || 0)).toLocaleString()} tokens
-              {session.tokenUsage && (session.tokenUsage.cacheCreationTokens > 0 || session.tokenUsage.cacheReadTokens > 0) && (
-                <span className="cache-info" title={`Cache: ${session.tokenUsage.cacheCreationTokens.toLocaleString()} created, ${session.tokenUsage.cacheReadTokens.toLocaleString()} read`}>
-                  {' '}(📦 {(session.tokenUsage.cacheCreationTokens + session.tokenUsage.cacheReadTokens).toLocaleString()})
-                </span>
-              )}
+              ${(session.totalCost || 0).toFixed(4)}
             </span>
+            <span className="status-separator">•</span>
+            <ContextIndicator
+              session={session}
+              messages={sessionMessages}
+              onPinMessage={(messageId) => pinMessage(session.id, messageId)}
+              onUnpinMessage={(messageId) => unpinMessage(session.id, messageId)}
+              pinnedMessageIds={session.pinnedMessageIds || []}
+            />
+            {session.tokenUsage && (session.tokenUsage.cacheCreationTokens > 0 || session.tokenUsage.cacheReadTokens > 0) && (
+              <>
+                <span className="status-separator">•</span>
+                <span className="cache-info" title={`Cache: ${session.tokenUsage.cacheCreationTokens.toLocaleString()} created, ${session.tokenUsage.cacheReadTokens.toLocaleString()} read`}>
+                  📦 {(session.tokenUsage.cacheCreationTokens + session.tokenUsage.cacheReadTokens).toLocaleString()}
+                </span>
+              </>
+            )}
           </div>
           {session.isProcessing && (
             <button className="btn-stop-status" onClick={handleStop} title="Stop processing">
@@ -823,6 +840,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ session }) => {
         lineNumber={fileViewerState.lineNumber}
         onClose={handleCloseFileViewer}
       />
+
+      {showExport && (
+        <ExportModal
+          session={session}
+          messages={sessionMessages}
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </div>
   );
 };
