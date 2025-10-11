@@ -228,15 +228,16 @@ const MessageList: React.FC<MessageListProps> = ({ messages, onToolSummaryClick 
           </div>
           {isExpanded && (
             <div className="tool-group-details">
-              {group.messages.map((msg) => renderMessage(msg, true))}
+              {/* In balanced mode, show clickable cards so users can jump to Activity Panel */}
+              {group.messages.map((msg) => renderMessage(msg, false))}
             </div>
           )}
         </div>
       );
     }
 
-    // For single tools or detailed mode, render individual messages
-    return group.messages.map((msg) => renderMessage(msg));
+    // For detailed mode, render individual messages with full details
+    return group.messages.map((msg) => renderMessage(msg, messageDensity === 'detailed'));
   };
 
   const renderMessage = (message: Message, forceDetailed: boolean = false) => {
@@ -357,7 +358,10 @@ const MessageList: React.FC<MessageListProps> = ({ messages, onToolSummaryClick 
             <div key={message.id} className="message message-tool-summary">
               <ToolSummaryCard
                 message={message}
-                onClick={() => setActivityPanelMessageId(message.id)}
+                onClick={() => {
+                  setActivityPanelMessageId(message.id);
+                  onToolSummaryClick?.(message.id);
+                }}
               />
             </div>
           );
@@ -645,18 +649,6 @@ const MessageList: React.FC<MessageListProps> = ({ messages, onToolSummaryClick 
   const shouldGroupTools = settings?.messageDensity === 'balanced';
   const toolGroups = shouldGroupTools ? groupToolMessages(messages) : [];
   const groupedMessageIds = new Set(toolGroups.flatMap(g => g.messages.map(m => m.id)));
-
-  // Debug logging
-  if (shouldGroupTools && toolGroups.length > 0) {
-    console.log('[MessageList] Tool groups:', toolGroups.map(g => ({
-      id: g.id,
-      type: g.type,
-      summary: g.summary,
-      messageCount: g.messages.length,
-      messageIds: g.messages.map(m => m.id)
-    })));
-    console.log('[MessageList] Grouped message IDs:', Array.from(groupedMessageIds));
-  }
 
   return (
     <div className="message-list" ref={messageListRef}>

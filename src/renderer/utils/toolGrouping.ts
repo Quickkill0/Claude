@@ -21,9 +21,16 @@ export interface ToolGroup {
  */
 export function groupToolMessages(messages: Message[]): ToolGroup[] {
   const groups: ToolGroup[] = [];
-  let currentGroup: Message[] = [];
-  let lastToolTarget: string | null = null;
-  let lastToolTime: number = 0;
+
+  // First pass: Build map of toolUseId -> tool message for matching results
+  const toolUseIdMap = new Map<string, Message>();
+  const processedIds = new Set<string>();
+
+  for (const msg of messages) {
+    if (msg.type === 'tool' && msg.metadata?.toolUseId) {
+      toolUseIdMap.set(msg.metadata.toolUseId, msg);
+    }
+  }
 
   const createGroup = (msgs: Message[]): ToolGroup => {
     if (msgs.length === 0) {
@@ -59,8 +66,18 @@ export function groupToolMessages(messages: Message[]): ToolGroup[] {
     };
   };
 
+  // Second pass: Group messages, handling separated tool-results
+  let currentGroup: Message[] = [];
+  let lastToolTarget: string | null = null;
+  let lastToolTime: number = 0;
+
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
+
+    // Skip if already processed as part of a tool+result pair
+    if (processedIds.has(msg.id)) {
+      continue;
+    }
 
     // Only group tool and tool-result messages
     if (msg.type !== 'tool' && msg.type !== 'tool-result') {
@@ -76,37 +93,59 @@ export function groupToolMessages(messages: Message[]): ToolGroup[] {
     const target = extractToolTarget(msg);
     const msgTime = new Date(msg.timestamp).getTime();
 
-    // Always group tool-result with its corresponding tool
-    // Tool results immediately follow their tool calls
-    if (msg.type === 'tool-result' && currentGroup.length > 0) {
-      const lastMsg = currentGroup[currentGroup.length - 1];
-      // If the last message was a tool with the same name, group them together
-      if (lastMsg.type === 'tool' && lastMsg.metadata?.toolName === toolName) {
-        currentGroup.push(msg);
-        lastToolTime = msgTime;
-        continue;
+    // For tool messages, collect them with their corresponding result
+    if (msg.type === 'tool') {
+      const toolMessages: Message[] = [msg];
+      processedIds.add(msg.id);
+
+      // Find the corresponding tool-result (might not be immediately after)
+      if (msg.metadata?.toolUseId) {
+        for (let j = i + 1; j < messages.length; j++) {
+          const potentialResult = messages[j];
+          if (potentialResult.type === 'tool-result' &&
+              potentialResult.metadata?.toolUseId === msg.metadata.toolUseId) {
+            toolMessages.push(potentialResult);
+            processedIds.add(potentialResult.id);
+            break; // Found the result, stop looking
+          }
+        }
+      }
+
+      // Check if this tool should be grouped with previous ones (same file operations)
+      const shouldGroup =
+        currentGroup.length > 0 &&
+        toolName &&
+        target &&
+        lastToolTarget === target &&
+        (msgTime - lastToolTime) < 30000; // Within 30 seconds (increased from 10)
+
+      if (shouldGroup) {
+        currentGroup.push(...toolMessages);
+      } else {
+        if (currentGroup.length > 0) {
+          groups.push(createGroup(currentGroup));
+        }
+        currentGroup = toolMessages;
+        lastToolTarget = target;
+      }
+
+      lastToolTime = msgTime;
+    }
+    // Orphan tool-result (shouldn't happen, but handle it)
+    else if (msg.type === 'tool-result') {
+      // Try to find its tool
+      const correspondingTool = msg.metadata?.toolUseId ? toolUseIdMap.get(msg.metadata.toolUseId) : null;
+
+      if (!correspondingTool || !processedIds.has(msg.id)) {
+        // Standalone result (shouldn't happen but handle gracefully)
+        if (currentGroup.length > 0) {
+          groups.push(createGroup(currentGroup));
+          currentGroup = [];
+        }
+        groups.push(createGroup([msg]));
+        processedIds.add(msg.id);
       }
     }
-
-    // Check if this message should be grouped with previous ones
-    const shouldGroup =
-      currentGroup.length > 0 &&
-      toolName &&
-      target &&
-      lastToolTarget === target &&
-      (msgTime - lastToolTime) < 10000; // Within 10 seconds
-
-    if (shouldGroup) {
-      currentGroup.push(msg);
-    } else {
-      if (currentGroup.length > 0) {
-        groups.push(createGroup(currentGroup));
-      }
-      currentGroup = [msg];
-      lastToolTarget = target;
-    }
-
-    lastToolTime = msgTime;
   }
 
   // Add remaining group
