@@ -305,7 +305,7 @@ declare global {
       getSessionMessages: (sessionId: string) => Promise<Message[]>;
       saveSessionMessages: (sessionId: string, conversationId: string | undefined, messages: Message[], claudeSessionId?: string) => Promise<void>;
       getConversations: (sessionId: string) => Promise<Array<{conversationId: string, timestamp: string, messageCount: number, firstMessage: string, isActive?: boolean}>>;
-      loadConversation: (sessionId: string, conversationId: string) => Promise<{ messages: Message[], claudeSessionId?: string }>;
+      loadConversation: (sessionId: string, conversationId: string) => Promise<{ messages: Message[], claudeSessionId?: string, totalCost?: number, tokenUsage?: { inputTokens: number; outputTokens: number; cacheCreationTokens: number; cacheReadTokens: number } }>;
       sendMessage: (sessionId: string, message: string, config?: SessionConfig) => Promise<boolean>;
       stopProcess: (sessionId: string) => Promise<boolean>;
       onStreamData: (callback: (data: { sessionId: string; data: ClaudeStreamData }) => void) => void;

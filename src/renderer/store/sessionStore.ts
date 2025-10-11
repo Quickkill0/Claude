@@ -435,7 +435,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const newConversationId = crypto.randomUUID();
     console.log('[New Chat] Starting new conversation:', newConversationId);
 
-    // Clear messages and update session
+    // Clear messages and update session (reset cost and tokens)
     const messages = new Map(get().messages);
     messages.set(sessionId, []);
     set({ messages });
@@ -443,7 +443,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.id === sessionId
-          ? { ...s, activeConversationId: newConversationId, claudeSessionId: undefined }
+          ? {
+              ...s,
+              activeConversationId: newConversationId,
+              claudeSessionId: undefined,
+              totalCost: 0,
+              tokenUsage: {
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheCreationTokens: 0,
+                cacheReadTokens: 0
+              }
+            }
           : s
       ),
     }));
@@ -452,6 +463,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     await window.electronAPI.updateSession(sessionId, {
       activeConversationId: newConversationId,
       claudeSessionId: undefined,
+      totalCost: 0,
+      tokenUsage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0
+      }
     });
 
     // Save empty state
@@ -471,8 +489,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   loadConversation: async (sessionId: string, conversationId: string) => {
     try {
-      // Load conversation data (messages + claudeSessionId)
-      const { messages: conversationMessages, claudeSessionId } = await window.electronAPI.loadConversation(
+      // Load conversation data (messages + claudeSessionId + cost + tokens)
+      const { messages: conversationMessages, claudeSessionId, totalCost, tokenUsage } = await window.electronAPI.loadConversation(
         sessionId,
         conversationId
       );
@@ -480,17 +498,30 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       console.log('[Load Conversation] conversationId:', conversationId);
       console.log('[Load Conversation] claudeSessionId:', claudeSessionId);
       console.log('[Load Conversation] message count:', conversationMessages.length);
+      console.log('[Load Conversation] totalCost:', totalCost);
+      console.log('[Load Conversation] tokenUsage:', tokenUsage);
 
       // Set as current messages for this session
       const messages = new Map(get().messages);
       messages.set(sessionId, conversationMessages);
       set({ messages });
 
-      // Update session to mark this conversation as active and restore claudeSessionId
+      // Update session to mark this conversation as active and restore all data
       set((state) => ({
         sessions: state.sessions.map((s) =>
           s.id === sessionId
-            ? { ...s, activeConversationId: conversationId, claudeSessionId: claudeSessionId }
+            ? {
+                ...s,
+                activeConversationId: conversationId,
+                claudeSessionId: claudeSessionId,
+                totalCost: totalCost || 0,
+                tokenUsage: tokenUsage || {
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  cacheCreationTokens: 0,
+                  cacheReadTokens: 0
+                }
+              }
             : s
         ),
       }));
@@ -499,9 +530,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       await window.electronAPI.updateSession(sessionId, {
         activeConversationId: conversationId,
         claudeSessionId: claudeSessionId,
+        totalCost: totalCost,
+        tokenUsage: tokenUsage
       });
 
-      console.log('[Load Conversation] Conversation loaded successfully');
+      console.log('[Load Conversation] Conversation loaded successfully with cost and tokens');
     } catch (error) {
       console.error('[Load Conversation] Failed to load conversation:', error);
     }

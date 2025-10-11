@@ -8,6 +8,13 @@ interface ArchivedConversation {
   messages: Message[];
   claudeSessionId?: string;
   timestamp: string;
+  totalCost?: number;
+  tokenUsage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationTokens: number;
+    cacheReadTokens: number;
+  };
 }
 
 export class PersistenceManager {
@@ -235,15 +242,36 @@ export class PersistenceManager {
         // New conversation, use new timestamp
       }
 
+      // Calculate total tokens and cost from ALL messages
+      let totalCost = 0;
+      let tokenUsage = {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0
+      };
+
+      messages.forEach(msg => {
+        if (msg.metadata?.cost) {
+          totalCost += msg.metadata.cost;
+        }
+        if (msg.metadata?.tokens) {
+          tokenUsage.inputTokens += msg.metadata.tokens.input || 0;
+          tokenUsage.outputTokens += msg.metadata.tokens.output || 0;
+        }
+      });
+
       const conversation: ArchivedConversation = {
         messages,
         claudeSessionId,
-        timestamp
+        timestamp,
+        totalCost,
+        tokenUsage
       };
 
       await fs.writeFile(conversationFilePath, JSON.stringify(conversation, null, 2), 'utf-8');
 
-      console.log('[PersistenceManager] Conversation saved:', conversationFilePath);
+      console.log('[PersistenceManager] Conversation saved with cost:', totalCost, 'tokens:', tokenUsage);
     } catch (error) {
       console.error('[PersistenceManager] Failed to save conversation:', error);
     }
@@ -304,9 +332,19 @@ export class PersistenceManager {
   }
 
   /**
-   * Loads a conversation by conversationId, returns messages and claudeSessionId
+   * Loads a conversation by conversationId, returns messages, claudeSessionId, and usage stats
    */
-  async loadConversation(sessionId: string, conversationId: string): Promise<{ messages: Message[], claudeSessionId?: string }> {
+  async loadConversation(sessionId: string, conversationId: string): Promise<{
+    messages: Message[],
+    claudeSessionId?: string,
+    totalCost?: number,
+    tokenUsage?: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationTokens: number;
+      cacheReadTokens: number;
+    }
+  }> {
     try {
       const { sessions } = await this.loadSessions();
       const session = sessions.find(s => s.id === sessionId);
@@ -322,7 +360,9 @@ export class PersistenceManager {
 
       return {
         messages: conversation.messages,
-        claudeSessionId: conversation.claudeSessionId
+        claudeSessionId: conversation.claudeSessionId,
+        totalCost: conversation.totalCost,
+        tokenUsage: conversation.tokenUsage
       };
     } catch (error) {
       console.error('[PersistenceManager] Failed to load conversation:', error);
